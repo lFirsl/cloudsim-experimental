@@ -34,6 +34,7 @@ public class ManualExample {
     // TEST settings
     private static int HOST_NUM = 3;
     private static int CONTAINERS_PER_VM = 4;
+    private static int CLOUDLETS_PER_CONTAINER = 30;
 
     public static void main(String[] args) {
         try{
@@ -115,39 +116,39 @@ public class ManualExample {
 
             //Derive container specifications as to avoid a VM using more than 80%
 
-//            int CONTAINER_MIPS = VM_MIPS / CONTAINERS_PER_VM; // 200
-//            int CONTAINER_RAM = VM_RAM / CONTAINERS_PER_VM;   // ~1638
-//            int CONTAINER_BW = VM_BW / CONTAINERS_PER_VM;     // 2000
-//            long CONTAINER_STORAGE = VM_STORAGE / CONTAINERS_PER_VM; // optional
-//            int CONTAINER_CORES = 1;  // typically 1 per container
-//
-//            //Create 4 containers per VM
-//            containerlist = new ArrayList<>();
-//            int containerID = 0;
-//            Iterator<VirtualEntity> iterVm = vmlist.iterator();
-//            while(iterVm.hasNext()){
-//                VirtualEntity vm = iterVm.next();
-//                for(int i = 0; i < CONTAINERS_PER_VM; i++){
-//                    GuestEntity container = new Container(containerID++, broker.getId(),
-//                            CONTAINER_MIPS, CONTAINER_CORES,
-//                            CONTAINER_RAM, CONTAINER_BW,
-//                            CONTAINER_STORAGE, "Docker",
-//                            new CloudletSchedulerTimeShared()
-//                    );
-//                    container.setHost(vm);
-//                    containerlist.add(container);
-//                }
-//            }
-            // Create container
+            int CONTAINER_MIPS = VM_MIPS / CONTAINERS_PER_VM; // 200
+            int CONTAINER_RAM = VM_RAM / CONTAINERS_PER_VM;   // ~1638
+            int CONTAINER_BW = VM_BW / CONTAINERS_PER_VM;     // 2000
+            long CONTAINER_STORAGE = VM_STORAGE / CONTAINERS_PER_VM; // optional
+            int CONTAINER_CORES = 1;  // typically 1 per container
+
+            //Create 4 containers per VM
             containerlist = new ArrayList<>();
-
-            GuestEntity container = new Container(1, broker.getId(), 100, 2, HOST_RAM/2, HOST_BW/2, 10000/2, "Docker",
-                    new CloudletSchedulerTimeShared());
-            containerlist.add(container);
-
-            GuestEntity container2 = new Container(2, broker.getId(), 100, 2, HOST_RAM/2, HOST_BW/2, 10000/2, "Docker",
-                    new CloudletSchedulerTimeShared());
-            containerlist.add(container);
+            int containerID = 0;
+            Iterator<VirtualEntity> iterVm = vmlist.iterator();
+            while(iterVm.hasNext()){
+                VirtualEntity vm = iterVm.next();
+                for(int i = 0; i < CONTAINERS_PER_VM; i++){
+                    GuestEntity container = new Container(containerID++, broker.getId(),
+                            CONTAINER_MIPS, CONTAINER_CORES,
+                            CONTAINER_RAM, CONTAINER_BW,
+                            CONTAINER_STORAGE, "Docker",
+                            new CloudletSchedulerTimeShared()
+                    );
+                    container.setHost(vm);
+                    containerlist.add(container);
+                }
+            }
+            // Create container
+//            containerlist = new ArrayList<>();
+//
+//            GuestEntity container = new Container(1, broker.getId(), 100, 2, HOST_RAM/2, HOST_BW/2, 10000/2, "Docker",
+//                    new CloudletSchedulerTimeShared());
+//            containerlist.add(container);
+//
+//            GuestEntity container2 = new Container(2, broker.getId(), 100, 2, HOST_RAM/2, HOST_BW/2, 10000/2, "Docker",
+//                    new CloudletSchedulerTimeShared());
+//            containerlist.add(container);
 
             // Create Datacenters
             createDatacenter("Datacenter_0");
@@ -164,12 +165,14 @@ public class ManualExample {
             long outputSize = 300;
             UtilizationModel utilizationModel = new UtilizationModelFull();
             Iterator<GuestEntity> containerIter = containerlist.listIterator();
+
+            int cloudletID = 0;
             while(containerIter.hasNext()){
                 GuestEntity contain = containerIter.next();
                 System.out.println(contain.getId());
-                for (int i = 0; i < 10; i++) {
+                for (int i = 0; i < CLOUDLETS_PER_CONTAINER; i++) {
                     Cloudlet cloudlet = new Cloudlet(
-                            i, length, 2, fileSize, outputSize,
+                            cloudletID++, length, 2, fileSize, outputSize,
                             utilizationModel, utilizationModel, utilizationModel
                     );
                     cloudlet.setUserId(broker.getId());
