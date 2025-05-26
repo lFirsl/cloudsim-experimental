@@ -11,10 +11,7 @@ import org.cloudbus.cloudsim.provisioners.PeProvisionerSimple;
 import org.cloudbus.cloudsim.provisioners.RamProvisionerSimple;
 
 import java.text.DecimalFormat;
-import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.LinkedList;
-import java.util.List;
+import java.util.*;
 
 public class ManualExample {
 
@@ -36,6 +33,7 @@ public class ManualExample {
 
     // TEST settings
     private static int HOST_NUM = 3;
+    private static int CONTAINERS_PER_VM = 4;
 
     public static void main(String[] args) {
         try{
@@ -46,17 +44,19 @@ public class ManualExample {
             DatacenterBroker broker = createBroker();
 
             //Make all hosts
+            int peID = 0;
+            int hostID = 0;
             for(int i = 0; i < HOST_NUM; i++){
 
                 //Make list of PEs for current host
                 List<Pe> peList = new ArrayList<>();
                 for(int j = 0; i < HOST_CORES; i++){
-                    peList.add(new Pe(j, new PeProvisionerSimple(HOST_MIPS)));
+                    peList.add(new Pe(peID++, new PeProvisionerSimple(HOST_MIPS)));
                 }
 
                 //Make and add new host to the list
                 hostList.add(new Host(
-                        i,
+                        hostID++,
                         new RamProvisionerSimple(HOST_RAM),
                         new BwProvisionerSimple(HOST_BW),
                         HOST_STORAGE,
@@ -66,13 +66,20 @@ public class ManualExample {
             }
 
             vmlist = new ArrayList<>();
+            // Define VMs separately, even if near identical, to make headroom for changes later
+            int VM_MIPS = HOST_MIPS;
+            int VM_RAM = HOST_RAM;
+            int VM_BW = HOST_BW;
+            long VM_STORAGE = HOST_STORAGE;
+            int VM_CORES = HOST_CORES;
+
 
             for (int i = 0; i < HOST_NUM; i++) {
                 List<Pe> peList = new ArrayList<>();
 
                 for (int j = 0; j < HOST_CORES; j++) {
                     // Give each core a share of the total host MIPS
-                    peList.add(new Pe(j, new PeProvisionerSimple(HOST_MIPS / HOST_CORES)));
+                    peList.add(new Pe(j, new PeProvisionerSimple(VM_MIPS / VM_CORES)));
                 }
 
                 // Calculate total VM MIPS (same as host MIPS)
@@ -81,15 +88,15 @@ public class ManualExample {
                 VirtualEntity vm = new Vm(
                         i, broker.getId(),
                         totalVmMips,          // VM uses all host MIPS
-                        HOST_CORES,           // All cores
-                        HOST_RAM,
-                        HOST_BW,
+                        VM_CORES,           // All cores
+                        VM_RAM,
+                        VM_BW,
                         10000,                // VM image size
                         "Xen",
                         new CloudletSchedulerTimeShared(),
                         new VmSchedulerTimeShared(peList),
-                        new RamProvisionerSimple(HOST_RAM),
-                        new BwProvisionerSimple(HOST_BW),
+                        new RamProvisionerSimple(VM_RAM),
+                        new BwProvisionerSimple(VM_BW),
                         peList
                 );
 
@@ -97,15 +104,39 @@ public class ManualExample {
                 hostList.add(vm); // Note: you probably meant to add the *Host* here, not the VM
             }
 
+            //Derive container specifications as to avoid a VM using more than 80%
 
-
+//            int CONTAINER_MIPS = VM_MIPS / CONTAINERS_PER_VM; // 200
+//            int CONTAINER_RAM = VM_RAM / CONTAINERS_PER_VM;   // ~1638
+//            int CONTAINER_BW = VM_BW / CONTAINERS_PER_VM;     // 2000
+//            long CONTAINER_STORAGE = VM_STORAGE / CONTAINERS_PER_VM; // optional
+//            int CONTAINER_CORES = 1;  // typically 1 per container
+//
+//            //Create 4 containers per VM
+//            containerlist = new ArrayList<>();
+//            int containerID = 0;
+//            Iterator<VirtualEntity> iterVm = vmlist.iterator();
+//            while(iterVm.hasNext()){
+//                VirtualEntity vm = iterVm.next();
+//                for(int i = 0; i < CONTAINERS_PER_VM; i++){
+//                    GuestEntity container = new Container(containerID++, broker.getId(),
+//                            CONTAINER_MIPS, CONTAINER_CORES,
+//                            CONTAINER_RAM, CONTAINER_BW,
+//                            CONTAINER_STORAGE, "Docker",
+//                            new CloudletSchedulerTimeShared()
+//                    );
+//                    container.setHost(vm);
+//                    containerlist.add(container);
+//                }
+//            }
             // Create container
             containerlist = new ArrayList<>();
-            GuestEntity container = new Container(3, broker.getId(), 100, 2, HOST_RAM/2, HOST_BW/2, 10000/2, "Docker",
+
+            GuestEntity container = new Container(1, broker.getId(), 100, 2, HOST_RAM/2, HOST_BW/2, 10000/2, "Docker",
                     new CloudletSchedulerTimeShared());
             containerlist.add(container);
 
-            GuestEntity container2 = new Container(3, broker.getId(), 100, 2, HOST_RAM/2, HOST_BW/2, 10000/2, "Docker",
+            GuestEntity container2 = new Container(2, broker.getId(), 100, 2, HOST_RAM/2, HOST_BW/2, 10000/2, "Docker",
                     new CloudletSchedulerTimeShared());
             containerlist.add(container);
 
@@ -123,34 +154,20 @@ public class ManualExample {
             long fileSize = 300;
             long outputSize = 300;
             UtilizationModel utilizationModel = new UtilizationModelFull();
-
-            Cloudlet cloudlet = new Cloudlet(0, length, 2, fileSize,
-                    outputSize, utilizationModel, utilizationModel,
-                    utilizationModel);
-            cloudlet.setUserId(broker.getId());
-            cloudlet.setGuestId(3);
-            cloudletList.add(cloudlet);
-
-            cloudlet = new Cloudlet(1, length, 2, fileSize,
-                    outputSize, utilizationModel, utilizationModel,
-                    utilizationModel);
-            cloudlet.setUserId(broker.getId());
-            cloudlet.setGuestId(3);
-            cloudletList.add(cloudlet);
-
-            cloudlet = new Cloudlet(2, length, 2, fileSize,
-                    outputSize, utilizationModel, utilizationModel,
-                    utilizationModel);
-            cloudlet.setUserId(broker.getId());
-            cloudlet.setGuestId(4);
-            cloudletList.add(cloudlet);
-
-            cloudlet = new Cloudlet(3, length, 2, fileSize,
-                    outputSize, utilizationModel, utilizationModel,
-                    utilizationModel);
-            cloudlet.setUserId(broker.getId());
-            cloudlet.setGuestId(4);
-            cloudletList.add(cloudlet);
+            Iterator<GuestEntity> containerIter = containerlist.listIterator();
+            while(containerIter.hasNext()){
+                GuestEntity contain = containerIter.next();
+                System.out.println(contain.getId());
+                for (int i = 0; i < 10; i++) {
+                    Cloudlet cloudlet = new Cloudlet(
+                            i, length, 2, fileSize, outputSize,
+                            utilizationModel, utilizationModel, utilizationModel
+                    );
+                    cloudlet.setUserId(broker.getId());
+                    cloudlet.setGuestId(contain.getId());
+                    cloudletList.add(cloudlet);
+                }
+            }
 
 
             // submit cloudlet list to the broker
