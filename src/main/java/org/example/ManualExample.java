@@ -50,7 +50,7 @@ public class ManualExample {
 
                 //Make list of PEs for current host
                 List<Pe> peList = new ArrayList<>();
-                for(int j = 0; i < HOST_CORES; i++){
+                for(int j = 0; j < HOST_CORES; j++){
                     peList.add(new Pe(peID++, new PeProvisionerSimple(HOST_MIPS)));
                 }
 
@@ -64,6 +64,15 @@ public class ManualExample {
                         new VmSchedulerSpaceShared(peList)
                 ));
             }
+
+            Iterator<HostEntity> iterator = hostList.listIterator();
+
+            System.out.println("We're going through the hosts!");
+            while(iterator.hasNext()){
+                System.out.println(iterator.next().getId());
+            }
+            System.out.println("Finished hosts");
+
 
             vmlist = new ArrayList<>();
             // Define VMs separately, even if near identical, to make headroom for changes later
@@ -79,7 +88,7 @@ public class ManualExample {
 
                 for (int j = 0; j < HOST_CORES; j++) {
                     // Give each core a share of the total host MIPS
-                    peList.add(new Pe(j, new PeProvisionerSimple(VM_MIPS / VM_CORES)));
+                    peList.add(new Pe(j, new PeProvisionerSimple((double) VM_MIPS / VM_CORES)));
                 }
 
                 // Calculate total VM MIPS (same as host MIPS)
