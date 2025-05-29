@@ -42,7 +42,7 @@ public class ManualExample {
             CloudSim.init(1,Calendar.getInstance(),false);
 
             //Get a broker
-            DatacenterBroker broker = createBroker();
+            Broker_Custom broker = createBroker();
 
             //Make all hosts
             int peID = 0;
@@ -240,10 +240,10 @@ public class ManualExample {
      *
      * @return the datacenter broker
      */
-    private static DatacenterBroker createBroker() {
-        DatacenterBroker broker = null;
+    private static Broker_Custom createBroker() {
+        Broker_Custom broker = null;
         try {
-            broker = new DatacenterBroker("Broker");
+            broker = new Broker_Custom("Broker");
         } catch (Exception e) {
             e.printStackTrace();
             return null;
