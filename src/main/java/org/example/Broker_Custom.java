@@ -47,6 +47,7 @@ public class Broker_Custom extends DatacenterBroker {
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(CONTROL_PLANE_URL + "/nodes"))
                 .header("Content-Type", "application/json")
+                .version(HttpClient.Version.HTTP_1_1)
                 .POST(HttpRequest.BodyPublishers.ofString(nodesJson.toString()))
                 .build();
 
@@ -60,11 +61,15 @@ public class Broker_Custom extends DatacenterBroker {
 
     @Override
     public void processEvent(SimEvent ev) {
+        System.out.println("[TRACE] processEvent tag: " + ev.getTag());
+
         if (ev.getTag().equals(INIT_BROKER)) {
+            System.out.println("[DEBUG] INIT_BROKER fired. Datacenter IDs: " + getDatacenterIdsList());
             if (getDatacenterIdsList().isEmpty()) {
                 schedule(getId(), 0.5, INIT_BROKER);
             } else {
                 for (Cloudlet cloudlet : cloudletsToSubmit) {
+                    System.out.println("[DEBUG] Scheduling cloudlet: " + cloudlet.getCloudletId());
                     schedule(getId(), 0.1, CUSTOM_EVENT_TAG, cloudlet);
                 }
                 cloudletsToSubmit.clear();
@@ -75,9 +80,11 @@ public class Broker_Custom extends DatacenterBroker {
             cloudletMap.put(cloudlet.getCloudletId(), cloudlet);
 
             String podJson = String.format("{\"id\":%d}", cloudlet.getCloudletId());
+            System.out.println("[DEBUG] Sending to /pods: " + podJson);
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(CONTROL_PLANE_URL + "/pods"))
                     .header("Content-Type", "application/json")
+                    .version(HttpClient.Version.HTTP_1_1)
                     .POST(HttpRequest.BodyPublishers.ofString(podJson))
                     .build();
 
@@ -94,6 +101,7 @@ public class Broker_Custom extends DatacenterBroker {
             try {
                 HttpRequest statusRequest = HttpRequest.newBuilder()
                         .uri(URI.create(CONTROL_PLANE_URL + "/pods/" + podId + "/status"))
+                        .version(HttpClient.Version.HTTP_1_1)
                         .build();
 
                 HttpResponse<String> response = httpClient.send(statusRequest, BodyHandlers.ofString());
