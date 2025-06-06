@@ -28,17 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
-// Define the custom CloudSimTags enum directly in this file for self-containment in the Canvas.
-enum CustomCloudSimTags implements CloudSimTags {
-    CUSTOM_EVENT_TAG,
-    SCHEDULING_RESPONSE_EVENT,
-    POLL_TAG, // This will be our POD_STATUS_CHECK_EVENT
-    INIT_BROKER
-}
-
 public class Broker_Custom extends DatacenterBroker {
-
-    private static final CloudSimTags POD_STATUS_CHECK_EVENT = CustomCloudSimTags.POLL_TAG;
 
     private static final String CONTROL_PLANE_URL = "http://localhost:8080";
     private final HttpClient httpClient;
@@ -83,8 +73,6 @@ public class Broker_Custom extends DatacenterBroker {
             processVmCreateAck(ev);
         } else if (ev.getTag() == CloudActionTags.CLOUDLET_RETURN) {
             processCloudletReturn(ev);
-        } else if (ev.getTag() == POD_STATUS_CHECK_EVENT) { // Handle our custom polling event
-            handlePodStatusCheckEvent();
         } else if (ev.getTag() == CloudActionTags.END_OF_SIMULATION) {
             Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Received END_OF_SIMULATION event. Broker will now proceed with final cleanup.");
             // CloudSim's core shutdown mechanism will handle calling shutdownEntity().
@@ -133,7 +121,6 @@ public class Broker_Custom extends DatacenterBroker {
 
             if (getGuestsCreatedList().size() == getGuestList().size()) {
                 submitCloudletsToControlPlane();
-                schedule(getId(), CloudSim.getMinTimeBetweenEvents(), POD_STATUS_CHECK_EVENT);
             } else {
                 boolean triedAllDatacenters = true;
                 for (int nextDatacenterId : getDatacenterIdsList()) {
@@ -147,7 +134,6 @@ public class Broker_Custom extends DatacenterBroker {
                 if (triedAllDatacenters) {
                     if (!getGuestsCreatedList().isEmpty()) {
                         submitCloudletsToControlPlane();
-                        schedule(getId(), CloudSim.getMinTimeBetweenEvents(), POD_STATUS_CHECK_EVENT);
                     } else {
                         Log.printlnConcat(CloudSim.clock(), ": ", getName(),
                                 ": none of the required VMs/Containers could be created. CloudSim will terminate naturally when no more events remain.");
@@ -250,6 +236,68 @@ public class Broker_Custom extends DatacenterBroker {
             successfullySubmittedToCP.add(cloudlet);
         }
         getCloudletList().removeAll(successfullySubmittedToCP);
+
+
+        //Handle return of cloudlets
+
+        List<Integer> cloudletIdsToProcess = new ArrayList<>(pendingCloudletsForScheduling.keySet());
+        mapper = new ObjectMapper();
+
+        for (Integer cloudletId : cloudletIdsToProcess) {
+            Cloudlet cloudlet = pendingCloudletsForScheduling.get(cloudletId);
+            if (cloudlet == null) continue;
+
+            String url = CONTROL_PLANE_URL + "/pods/" + cloudletId + "/status";
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .GET()
+                    .build();
+
+            try {
+                HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+                if (response.statusCode() == 200) {
+                    String responseBody = response.body();
+                    try {
+                        JsonNode rootNode = mapper.readTree(responseBody);
+                        String status = rootNode.get("status").asText();
+
+                        if ("Scheduled".equals(status)) {
+                            String nodeName = rootNode.has("nodeName") ? rootNode.get("nodeName").asText() : "N/A";
+                            int nodeID = rootNode.has("vmId") ? rootNode.get("vmId").asInt() : -1;
+
+                            if (nodeID != -1) {
+                                Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Pod ", cloudletId, " scheduled on Node ", nodeName, " (VM ID ", nodeID, ")");
+                                submitCloudletToVmInCloudSim(cloudlet, nodeID);
+                                pendingCloudletsForScheduling.remove(cloudletId);
+                            } else {
+                                Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": WARNING: Pod ", cloudletId, " scheduled, but missing or invalid VM ID in response: ", responseBody);
+                                cloudlet.setCloudletStatus(Cloudlet.CloudletStatus.FAILED);
+                                getCloudletReceivedList().add(cloudlet);
+                                finishedCloudletsCount.incrementAndGet();
+                                pendingCloudletsForScheduling.remove(cloudletId);
+                            }
+                        } else if ("Pending".equals(status)) {
+                            // Still pending, needs another check in the next cycle.
+                        } else if ("Unschedulable".equals(status)) {
+                            Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Pod ", cloudletId, " reported as Unschedulable by Control Plane. Marking as failed.");
+                            cloudlet.setCloudletStatus(Cloudlet.CloudletStatus.FAILED);
+                            getCloudletReceivedList().add(cloudlet);
+                            finishedCloudletsCount.incrementAndGet();
+                            pendingCloudletsForScheduling.remove(cloudletId);
+                        } else {
+                            Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Pod ", cloudletId, " has unknown status: ", status, " Response: ", responseBody);
+                        }
+                    } catch (Exception e) {
+                        Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Error parsing JSON response for Pod ", cloudletId, ": ", e.getMessage(), " Response: ", responseBody);
+                    }
+                } else {
+                    Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Failed to get status for Pod ", cloudletId, ", status: ", response.statusCode(), " Body: ", response.body());
+                }
+            } catch (IOException | InterruptedException e) {
+                Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Network error querying status for Pod ", cloudletId, ": ", e.getMessage());
+                Thread.currentThread().interrupt();
+            }
+        }
     }
 
     /**
@@ -312,8 +360,6 @@ public class Broker_Custom extends DatacenterBroker {
                     } catch (Exception e) {
                         Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Error parsing JSON response for Pod ", cloudletId, ": ", e.getMessage(), " Response: ", responseBody);
                     }
-                } else if (response.statusCode() == 404) {
-                    // Pod not found yet, keep polling.
                 } else {
                     Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Failed to get status for Pod ", cloudletId, ", status: ", response.statusCode(), " Body: ", response.body());
                 }
@@ -329,9 +375,6 @@ public class Broker_Custom extends DatacenterBroker {
             // CloudSim will naturally terminate when its event queue becomes empty.
             Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": All Cloudlets processed and finished. Broker will now cease scheduling new events.");
             // No explicit CloudSim.terminateSimulation() call here.
-        } else {
-            // If there are still unresolved cloudlets, schedule another check.
-            schedule(getId(), CloudSim.getMinTimeBetweenEvents(), POD_STATUS_CHECK_EVENT);
         }
     }
 
@@ -365,9 +408,6 @@ public class Broker_Custom extends DatacenterBroker {
         Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": The number of finished Cloudlets is:", getCloudletReceivedList().size());
         cloudletsSubmitted--;
         finishedCloudletsCount.incrementAndGet();
-
-        // No explicit terminateSimulation() call here.
-        // The handlePodStatusCheckEvent will eventually detect all finished cloudlets and stop scheduling.
     }
 
     @Override
