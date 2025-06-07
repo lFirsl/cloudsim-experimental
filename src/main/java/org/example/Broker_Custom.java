@@ -237,6 +237,13 @@ public class Broker_Custom extends DatacenterBroker {
         }
         getCloudletList().removeAll(successfullySubmittedToCP);
 
+        try{
+            Thread.sleep(100);
+        }
+        catch(Exception e){
+            System.out.println(e.getMessage());
+        }
+
 
         //Handle return of cloudlets
 
@@ -300,84 +307,6 @@ public class Broker_Custom extends DatacenterBroker {
         }
     }
 
-    /**
-     * Handles the periodic check for pod statuses from the external scheduler.
-     * This method is now called via scheduled self-events, blocking the simulation time.
-     */
-    private void handlePodStatusCheckEvent() {
-        // No need for a termination check here anymore, as we rely on natural shutdown.
-        // This method will only be called if an event for it exists in the queue.
-
-        Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Checking pod statuses from Control Plane. Pending: ", pendingCloudletsForScheduling.size());
-
-        List<Integer> cloudletIdsToProcess = new ArrayList<>(pendingCloudletsForScheduling.keySet());
-        com.fasterxml.jackson.databind.ObjectMapper mapper = new ObjectMapper();
-
-        for (Integer cloudletId : cloudletIdsToProcess) {
-            Cloudlet cloudlet = pendingCloudletsForScheduling.get(cloudletId);
-            if (cloudlet == null) continue;
-
-            String url = CONTROL_PLANE_URL + "/pods/" + cloudletId + "/status";
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(url))
-                    .GET()
-                    .build();
-
-            try {
-                HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-                if (response.statusCode() == 200) {
-                    String responseBody = response.body();
-                    try {
-                        JsonNode rootNode = mapper.readTree(responseBody);
-                        String status = rootNode.get("status").asText();
-
-                        if ("Scheduled".equals(status)) {
-                            String nodeName = rootNode.has("nodeName") ? rootNode.get("nodeName").asText() : "N/A";
-                            int nodeID = rootNode.has("vmId") ? rootNode.get("vmId").asInt() : -1;
-
-                            if (nodeID != -1) {
-                                Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Pod ", cloudletId, " scheduled on Node ", nodeName, " (VM ID ", nodeID, ")");
-                                submitCloudletToVmInCloudSim(cloudlet, nodeID);
-                                pendingCloudletsForScheduling.remove(cloudletId);
-                            } else {
-                                Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": WARNING: Pod ", cloudletId, " scheduled, but missing or invalid VM ID in response: ", responseBody);
-                                cloudlet.setCloudletStatus(Cloudlet.CloudletStatus.FAILED);
-                                getCloudletReceivedList().add(cloudlet);
-                                finishedCloudletsCount.incrementAndGet();
-                                pendingCloudletsForScheduling.remove(cloudletId);
-                            }
-                        } else if ("Pending".equals(status)) {
-                            // Still pending, needs another check in the next cycle.
-                        } else if ("Unschedulable".equals(status)) {
-                            Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Pod ", cloudletId, " reported as Unschedulable by Control Plane. Marking as failed.");
-                            cloudlet.setCloudletStatus(Cloudlet.CloudletStatus.FAILED);
-                            getCloudletReceivedList().add(cloudlet);
-                            finishedCloudletsCount.incrementAndGet();
-                            pendingCloudletsForScheduling.remove(cloudletId);
-                        } else {
-                            Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Pod ", cloudletId, " has unknown status: ", status, " Response: ", responseBody);
-                        }
-                    } catch (Exception e) {
-                        Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Error parsing JSON response for Pod ", cloudletId, ": ", e.getMessage(), " Response: ", responseBody);
-                    }
-                } else {
-                    Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Failed to get status for Pod ", cloudletId, ", status: ", response.statusCode(), " Body: ", response.body());
-                }
-            } catch (IOException | InterruptedException e) {
-                Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Network error querying status for Pod ", cloudletId, ": ", e.getMessage());
-                Thread.currentThread().interrupt();
-            }
-        }
-
-        // Check if all initial cloudlets are now accounted for (finished, failed, or unschedulable).
-        if (finishedCloudletsCount.get() == totalInitialCloudlets) {
-            // All custom broker work is done. Stop scheduling new POD_STATUS_CHECK_EVENTs.
-            // CloudSim will naturally terminate when its event queue becomes empty.
-            Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": All Cloudlets processed and finished. Broker will now cease scheduling new events.");
-            // No explicit CloudSim.terminateSimulation() call here.
-        }
-    }
-
     private void submitCloudletToVmInCloudSim(Cloudlet cloudlet, int vmId) {
         GuestEntity targetVm = VmList.getById(getGuestsCreatedList(), vmId);
 
@@ -408,13 +337,6 @@ public class Broker_Custom extends DatacenterBroker {
         Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": The number of finished Cloudlets is:", getCloudletReceivedList().size());
         cloudletsSubmitted--;
         finishedCloudletsCount.incrementAndGet();
-    }
-
-    @Override
-    protected void finishExecution() {
-        // Override to prevent premature shutdown from parent class.
-        // Our shutdown is controlled by the finishedCloudletsCount and the natural emptying of the event queue.
-        Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": finishExecution() called implicitly by parent. Broker relies on natural simulation termination.");
     }
 
     @Override
