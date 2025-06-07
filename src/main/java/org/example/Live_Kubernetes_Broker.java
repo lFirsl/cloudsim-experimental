@@ -236,7 +236,7 @@ public class Live_Kubernetes_Broker extends DatacenterBroker {
         }
         getCloudletList().removeAll(successfullySubmittedToCP);
 
-        // Sleep for ~1 second to allow the scheduler time to do it's job, before we check for whether the allocations are done
+        // Sleep for ~1 second to allow the scheduler time to do its job, before we check for whether the allocations are done.
         try{
             Thread.sleep(1000);
         }
@@ -338,34 +338,5 @@ public class Live_Kubernetes_Broker extends DatacenterBroker {
         Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": The number of finished Cloudlets is:", getCloudletReceivedList().size());
         cloudletsSubmitted--;
         finishedCloudletsCount.incrementAndGet();
-    }
-
-    // --- Helper classes for JSON serialization (matching Go structs) ---
-    private static class GoNode {
-        public int id;
-        public String name;
-        public int mipsAvailable;
-        public int ramAvailable;
-
-        public GoNode(int id, String name, int mipsAvailable, int ramAvailable) {
-            this.id = id;
-            this.name = name;
-            this.mipsAvailable = mipsAvailable;
-            this.ramAvailable = ramAvailable;
-        }
-    }
-
-    private static class GoPod {
-        public int id;
-        public String name;
-        public int mipsRequested;
-        public int ramRequested;
-
-        public GoPod(int id, String name, int mipsRequested, int ramRequested) {
-            this.id = id;
-            this.name = name;
-            this.mipsRequested = mipsRequested;
-            this.ramRequested = ramRequested;
-        }
     }
 }
