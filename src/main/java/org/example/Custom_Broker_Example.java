@@ -15,7 +15,7 @@ import org.cloudbus.cloudsim.CloudletSchedulerTimeShared; // Using TimeShared fo
 import java.text.DecimalFormat;
 import java.util.*;
 
-public class ManualExample {
+public class Custom_Broker_Example {
 
     /** The host list. */
     private static List<HostEntity> hostList; // Initialize in main
@@ -45,7 +45,7 @@ public class ManualExample {
             CloudSim.init(1,Calendar.getInstance(),false);
 
             //Get a broker
-            Broker_Custom broker = createBroker();
+            Live_Kubernetes_Broker broker = createBroker();
 
             hostList = new ArrayList<>(); // Initialize hostList here
             int hostID = 0;
@@ -208,10 +208,10 @@ public class ManualExample {
         return datacenter;
     }
 
-    private static Broker_Custom createBroker() {
-        Broker_Custom broker = null;
+    private static Live_Kubernetes_Broker createBroker() {
+        Live_Kubernetes_Broker broker = null;
         try {
-            broker = new Broker_Custom("Broker");
+            broker = new Live_Kubernetes_Broker("Broker");
         } catch (Exception e) {
             e.printStackTrace();
             return null;

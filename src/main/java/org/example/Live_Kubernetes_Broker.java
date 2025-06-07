@@ -28,23 +28,21 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class Broker_Custom extends DatacenterBroker {
+public class Live_Kubernetes_Broker extends DatacenterBroker {
 
     private static final String CONTROL_PLANE_URL = "http://localhost:8080";
     private final HttpClient httpClient;
-    private final ObjectMapper objectMapper;
 
     private final Map<Integer, Cloudlet> pendingCloudletsForScheduling;
     private boolean initialNodesSent = false;
     // Removed simulationTerminationInitiated flag as it's no longer needed for explicit termination calls.
 
-    private int totalInitialCloudlets = 0;
     private final AtomicInteger finishedCloudletsCount = new AtomicInteger(0);
 
-    public Broker_Custom(String name) throws Exception {
+    public Live_Kubernetes_Broker(String name) throws Exception {
         super(name);
         this.httpClient = HttpClient.newHttpClient();
-        this.objectMapper = new ObjectMapper();
+        ObjectMapper objectMapper = new ObjectMapper();
         this.pendingCloudletsForScheduling = new HashMap<>();
     }
 
@@ -57,7 +55,7 @@ public class Broker_Custom extends DatacenterBroker {
     @Override
     public void submitCloudletList(List<? extends Cloudlet> list) {
         super.submitCloudletList(list);
-        this.totalInitialCloudlets = list.size();
+        int totalInitialCloudlets = list.size();
     }
 
     @Override
@@ -65,19 +63,16 @@ public class Broker_Custom extends DatacenterBroker {
         // No need for a termination check here anymore, as we rely on natural shutdown.
         // All events will be processed until CloudSim's queue is empty.
 
-        if (ev.getTag() == CloudActionTags.RESOURCE_CHARACTERISTICS_REQUEST) {
-            processResourceCharacteristicsRequest(ev);
-        } else if (ev.getTag() == CloudActionTags.RESOURCE_CHARACTERISTICS) {
-            processResourceCharacteristics(ev);
-        } else if (ev.getTag() == CloudActionTags.VM_CREATE_ACK) {
-            processVmCreateAck(ev);
-        } else if (ev.getTag() == CloudActionTags.CLOUDLET_RETURN) {
-            processCloudletReturn(ev);
-        } else if (ev.getTag() == CloudActionTags.END_OF_SIMULATION) {
-            Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Received END_OF_SIMULATION event. Broker will now proceed with final cleanup.");
+        switch (ev.getTag()) {
+            case CloudActionTags.RESOURCE_CHARACTERISTICS_REQUEST -> processResourceCharacteristicsRequest(ev);
+            case CloudActionTags.RESOURCE_CHARACTERISTICS -> processResourceCharacteristics(ev);
+            case CloudActionTags.VM_CREATE_ACK -> processVmCreateAck(ev);
+            case CloudActionTags.CLOUDLET_RETURN -> processCloudletReturn(ev);
+            case CloudActionTags.END_OF_SIMULATION ->
+                    Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Received END_OF_SIMULATION event. Broker will now proceed with final cleanup.");
+
             // CloudSim's core shutdown mechanism will handle calling shutdownEntity().
-        } else {
-            processOtherEvent(ev);
+            case null, default -> processOtherEvent(ev);
         }
     }
 
@@ -238,7 +233,7 @@ public class Broker_Custom extends DatacenterBroker {
         getCloudletList().removeAll(successfullySubmittedToCP);
 
         try{
-            Thread.sleep(100);
+            Thread.sleep(1000);
         }
         catch(Exception e){
             System.out.println(e.getMessage());
@@ -268,31 +263,35 @@ public class Broker_Custom extends DatacenterBroker {
                         JsonNode rootNode = mapper.readTree(responseBody);
                         String status = rootNode.get("status").asText();
 
-                        if ("Scheduled".equals(status)) {
-                            String nodeName = rootNode.has("nodeName") ? rootNode.get("nodeName").asText() : "N/A";
-                            int nodeID = rootNode.has("vmId") ? rootNode.get("vmId").asInt() : -1;
+                        switch (status) {
+                            case "Scheduled" -> {
+                                String nodeName = rootNode.has("nodeName") ? rootNode.get("nodeName").asText() : "N/A";
+                                int nodeID = rootNode.has("vmId") ? rootNode.get("vmId").asInt() : -1;
 
-                            if (nodeID != -1) {
-                                Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Pod ", cloudletId, " scheduled on Node ", nodeName, " (VM ID ", nodeID, ")");
-                                submitCloudletToVmInCloudSim(cloudlet, nodeID);
-                                pendingCloudletsForScheduling.remove(cloudletId);
-                            } else {
-                                Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": WARNING: Pod ", cloudletId, " scheduled, but missing or invalid VM ID in response: ", responseBody);
+                                if (nodeID != -1) {
+                                    Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Pod ", cloudletId, " scheduled on Node ", nodeName, " (VM ID ", nodeID, ")");
+                                    submitCloudletToVmInCloudSim(cloudlet, nodeID);
+                                    pendingCloudletsForScheduling.remove(cloudletId);
+                                } else {
+                                    Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": WARNING: Pod ", cloudletId, " scheduled, but missing or invalid VM ID in response: ", responseBody);
+                                    cloudlet.setCloudletStatus(Cloudlet.CloudletStatus.FAILED);
+                                    getCloudletReceivedList().add(cloudlet);
+                                    finishedCloudletsCount.incrementAndGet();
+                                    pendingCloudletsForScheduling.remove(cloudletId);
+                                }
+                            }
+                            case "Pending" -> {
+                                // Still pending, needs another check in the next cycle.
+                            }
+                            case "Unschedulable" -> {
+                                Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Pod ", cloudletId, " reported as Unschedulable by Control Plane. Marking as failed.");
                                 cloudlet.setCloudletStatus(Cloudlet.CloudletStatus.FAILED);
                                 getCloudletReceivedList().add(cloudlet);
                                 finishedCloudletsCount.incrementAndGet();
                                 pendingCloudletsForScheduling.remove(cloudletId);
                             }
-                        } else if ("Pending".equals(status)) {
-                            // Still pending, needs another check in the next cycle.
-                        } else if ("Unschedulable".equals(status)) {
-                            Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Pod ", cloudletId, " reported as Unschedulable by Control Plane. Marking as failed.");
-                            cloudlet.setCloudletStatus(Cloudlet.CloudletStatus.FAILED);
-                            getCloudletReceivedList().add(cloudlet);
-                            finishedCloudletsCount.incrementAndGet();
-                            pendingCloudletsForScheduling.remove(cloudletId);
-                        } else {
-                            Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Pod ", cloudletId, " has unknown status: ", status, " Response: ", responseBody);
+                            case null, default ->
+                                    Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Pod ", cloudletId, " has unknown status: ", status, " Response: ", responseBody);
                         }
                     } catch (Exception e) {
                         Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Error parsing JSON response for Pod ", cloudletId, ": ", e.getMessage(), " Response: ", responseBody);
