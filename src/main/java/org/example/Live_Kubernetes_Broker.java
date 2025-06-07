@@ -340,12 +340,6 @@ public class Live_Kubernetes_Broker extends DatacenterBroker {
         finishedCloudletsCount.incrementAndGet();
     }
 
-    @Override
-    public void shutdownEntity() {
-        super.shutdownEntity(); // Calls SimEntity.shutdownEntity() which clears incomingEvents.
-        Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Broker_Custom entity shutting down.");
-    }
-
     // --- Helper classes for JSON serialization (matching Go structs) ---
     private static class GoNode {
         public int id;
