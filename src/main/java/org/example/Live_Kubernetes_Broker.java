@@ -193,6 +193,10 @@ public class Live_Kubernetes_Broker extends DatacenterBroker {
         List<Cloudlet> successfullySubmittedToCP = new ArrayList<>();
         com.fasterxml.jackson.databind.ObjectMapper mapper = new ObjectMapper();
 
+        // This currently sends cloudlets one by one to the control plane.
+        // We then check whether the allocations are done in a separate for loop.
+        // In hindsight, a single array of cloudlets should be sent in one go, and the request should return the allocations as a response.
+        // However, since this is a prototype, this change will be implemented for the proper implementation instead.
         for (Cloudlet cloudlet : getCloudletList()) {
             ObjectNode podJsonNode = mapper.createObjectNode();
             podJsonNode.put("id", cloudlet.getCloudletId());
@@ -232,6 +236,7 @@ public class Live_Kubernetes_Broker extends DatacenterBroker {
         }
         getCloudletList().removeAll(successfullySubmittedToCP);
 
+        // Sleep for ~1 second to allow the scheduler time to do it's job, before we check for whether the allocations are done
         try{
             Thread.sleep(1000);
         }
@@ -279,9 +284,6 @@ public class Live_Kubernetes_Broker extends DatacenterBroker {
                                     finishedCloudletsCount.incrementAndGet();
                                     pendingCloudletsForScheduling.remove(cloudletId);
                                 }
-                            }
-                            case "Pending" -> {
-                                // Still pending, needs another check in the next cycle.
                             }
                             case "Unschedulable" -> {
                                 Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Pod ", cloudletId, " reported as Unschedulable by Control Plane. Marking as failed.");
