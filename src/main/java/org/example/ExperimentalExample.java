@@ -51,7 +51,7 @@ public class ExperimentalExample {
             CloudSim.init(num_users,calendar,false);
 
             // Then, create the broker - the thing that manages what gets assigned where
-            DatacenterBroker broker = createBroker();
+            Live_Kubernetes_Broker broker = createBroker();
             int brokerId = broker.getId();
 
             // Create host - this is the "actual" PC. We define the specs how we want. Handy!
@@ -227,10 +227,10 @@ public class ExperimentalExample {
      *
      * @return the datacenter broker
      */
-    private static DatacenterBroker createBroker() {
-        DatacenterBroker broker = null;
+    private static Live_Kubernetes_Broker createBroker() {
+        Live_Kubernetes_Broker broker = null;
         try {
-            broker = new DatacenterBroker("Broker");
+            broker = new Live_Kubernetes_Broker("Broker");
         } catch (Exception e) {
             e.printStackTrace();
             return null;

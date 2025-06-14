@@ -250,6 +250,7 @@ public class Live_Kubernetes_Broker extends DatacenterBroker {
         }
 
         // Sleep for ~1 second to allow the scheduler time to do its job, before we check for whether the allocations are done.
+        // We should ideally replace this with some sort of proper blocking call.
         try{
             Thread.sleep(1000);
         }
