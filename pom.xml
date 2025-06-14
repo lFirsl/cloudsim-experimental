@@ -16,6 +16,13 @@
 
     <!-- Dependencies -->
     <dependencies>
+        <!-- https://mvnrepository.com/artifact/redis.clients/jedis -->
+        <dependency>
+            <groupId>redis.clients</groupId>
+            <artifactId>jedis</artifactId>
+            <version>6.0.0</version>
+        </dependency>
+
         <!-- CloudSim7G (you must run mvn install from the CloudSim repo first) -->
         <dependency>
             <groupId>org.cloudbus.cloudsim</groupId>

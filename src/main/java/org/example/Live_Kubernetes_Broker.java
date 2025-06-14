@@ -29,6 +29,8 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.cloudbus.cloudsim.core.SimEntity;
 
+import redis.clients.jedis.Jedis;
+
 public class Live_Kubernetes_Broker extends DatacenterBroker {
 
     private static final String CONTROL_PLANE_URL = "http://localhost:8080";
@@ -178,6 +180,13 @@ public class Live_Kubernetes_Broker extends DatacenterBroker {
                 .build();
 
         try {
+            // Right now does nothing - here to experiment with redis implementation.
+            try (Jedis jedis = new Jedis("localhost", 6379)) {
+                String channel = "nodes_and_pods";
+                String message = "hello from Java!";
+                jedis.publish(channel, message);
+                System.out.println("Published message: " + message);
+            }
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() == 200) {
                 Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": All Nodes sent successfully to Control Plane.");

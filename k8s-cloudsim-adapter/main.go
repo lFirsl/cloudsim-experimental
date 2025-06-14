@@ -2,8 +2,10 @@ package main
 
 import (
 	"bytes" // Required for bytes.NewReader to send JSON payload in HTTP requests
+	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/redis/go-redis/v9"
 	"log"
 	"net/http"
 	"strconv"
@@ -11,6 +13,8 @@ import (
 	"sync"
 	"time"
 )
+
+var ctx = context.Background()
 
 // --- Simplified Go Structs for our "API" ---
 // These structs represent the data models for Nodes (CloudSim VMs/Containers)
@@ -74,6 +78,23 @@ var (
 func init() {
 	nodes = make(map[int]Node)
 	pods = make(map[int]*Pod)
+}
+
+// Currently here just to experiment with Redis implementation - does nothing else.
+func subscribeToChannel() {
+	log.Println("Starting subscribeToChannel()")
+	rdb := redis.NewClient(&redis.Options{
+		Addr: "localhost:6379",
+	})
+
+	sub := rdb.Subscribe(ctx, "nodes_and_pods")
+	ch := sub.Channel()
+
+	fmt.Println("Subscribed to channel: nodes_and_pods")
+
+	for msg := range ch {
+		fmt.Printf("Received message: %s\n", msg.Payload)
+	}
 }
 
 // handleNodes receives a list of nodes from CloudSim.
@@ -373,6 +394,7 @@ func main() {
 	http.HandleFunc("/pods/", handlePodStatus) // Handles requests like /pods/{id}/status
 
 	// Start the background goroutine for the scheduler loop.
+	go subscribeToChannel() // Start listener in a goroutine - for redis experimentation.
 	go schedulerLoop(extenderURL)
 
 	// Start the HTTP server and log any fatal errors (e.g., port already in use).
