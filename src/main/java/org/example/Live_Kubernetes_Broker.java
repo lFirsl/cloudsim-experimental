@@ -27,6 +27,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.cloudbus.cloudsim.core.SimEntity;
 
 public class Live_Kubernetes_Broker extends DatacenterBroker {
 
@@ -36,8 +37,6 @@ public class Live_Kubernetes_Broker extends DatacenterBroker {
     private final Map<Integer, Cloudlet> pendingCloudletsForScheduling;
     private boolean initialNodesSent = false;
     // Removed simulationTerminationInitiated flag as it's no longer needed for explicit termination calls.
-
-    private final AtomicInteger finishedCloudletsCount = new AtomicInteger(0);
 
     public Live_Kubernetes_Broker(String name) throws Exception {
         super(name);
@@ -68,6 +67,9 @@ public class Live_Kubernetes_Broker extends DatacenterBroker {
             case CloudActionTags.RESOURCE_CHARACTERISTICS -> processResourceCharacteristics(ev);
             case CloudActionTags.VM_CREATE_ACK -> processVmCreateAck(ev);
             case CloudActionTags.CLOUDLET_RETURN -> processCloudletReturn(ev);
+            case CloudActionTags.BLANK -> {
+                Log.printlnConcat(CloudSim.clock(), ": Processing blank event to inject time manually.");
+            }
             case CloudActionTags.END_OF_SIMULATION ->
                     Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Received END_OF_SIMULATION event. Broker will now proceed with final cleanup.");
 
@@ -197,6 +199,7 @@ public class Live_Kubernetes_Broker extends DatacenterBroker {
         // We then check whether the allocations are done in a separate for loop.
         // In hindsight, a single array of cloudlets should be sent in one go, and the request should return the allocations as a response.
         // However, since this is a prototype, this change will be implemented for the proper implementation instead.
+        double sequentialDelay = 0;
         for (Cloudlet cloudlet : getCloudletList()) {
             ObjectNode podJsonNode = mapper.createObjectNode();
             podJsonNode.put("id", cloudlet.getCloudletId());
@@ -221,7 +224,18 @@ public class Live_Kubernetes_Broker extends DatacenterBroker {
                     .build();
 
             try {
+                // Measure time, add the response time as discrete time
+                long startTime = System.nanoTime();
                 HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+                long endTime = System.nanoTime();
+                double realWorldDurationSeconds = (endTime - startTime) / 1_000_000_000.0;
+                double timeToUse = Math.max(realWorldDurationSeconds, CloudSim.getMinTimeBetweenEvents());
+
+                schedule(getId(), timeToUse + sequentialDelay, CloudActionTags.BLANK);
+                Log.printlnConcat(CloudSim.clock(), ": Scheduled blank event for", timeToUse + sequentialDelay);
+                sequentialDelay += timeToUse;
+
+
                 if (response.statusCode() == 201) {
                     Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Pod ", cloudlet.getCloudletId(), " submitted successfully to Control Plane.");
                     pendingCloudletsForScheduling.put(cloudlet.getCloudletId(), cloudlet);
@@ -281,7 +295,6 @@ public class Live_Kubernetes_Broker extends DatacenterBroker {
                                     Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": WARNING: Pod ", cloudletId, " scheduled, but missing or invalid VM ID in response: ", responseBody);
                                     cloudlet.setCloudletStatus(Cloudlet.CloudletStatus.FAILED);
                                     getCloudletReceivedList().add(cloudlet);
-                                    finishedCloudletsCount.incrementAndGet();
                                     pendingCloudletsForScheduling.remove(cloudletId);
                                 }
                             }
@@ -289,7 +302,6 @@ public class Live_Kubernetes_Broker extends DatacenterBroker {
                                 Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Pod ", cloudletId, " reported as Unschedulable by Control Plane. Marking as failed.");
                                 cloudlet.setCloudletStatus(Cloudlet.CloudletStatus.FAILED);
                                 getCloudletReceivedList().add(cloudlet);
-                                finishedCloudletsCount.incrementAndGet();
                                 pendingCloudletsForScheduling.remove(cloudletId);
                             }
                             case null, default ->
@@ -315,7 +327,6 @@ public class Live_Kubernetes_Broker extends DatacenterBroker {
             Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": CRITICAL ERROR: Target VM/Container #", vmId, " not found for Cloudlet #", cloudlet.getCloudletId(), " in CloudSim's list. Marking as failed.");
             cloudlet.setCloudletStatus(Cloudlet.CloudletStatus.FAILED);
             getCloudletReceivedList().add(cloudlet);
-            finishedCloudletsCount.incrementAndGet();
             return;
         }
 
@@ -327,16 +338,5 @@ public class Live_Kubernetes_Broker extends DatacenterBroker {
         cloudlet.setGuestId(targetVm.getId());
         sendNow(getVmsToDatacentersMap().get(targetVm.getId()), CloudActionTags.CLOUDLET_SUBMIT, cloudlet);
         cloudletsSubmitted++;
-    }
-
-    @Override
-    protected void processCloudletReturn(SimEvent ev) {
-        Cloudlet cloudlet = (Cloudlet) ev.getData();
-        getCloudletReceivedList().add(cloudlet);
-        Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": ", cloudlet.getClass().getSimpleName(), " #", cloudlet.getCloudletId(),
-                " return received");
-        Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": The number of finished Cloudlets is:", getCloudletReceivedList().size());
-        cloudletsSubmitted--;
-        finishedCloudletsCount.incrementAndGet();
     }
 }
