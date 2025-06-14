@@ -248,7 +248,6 @@ public class Live_Kubernetes_Broker extends DatacenterBroker {
             }
             successfullySubmittedToCP.add(cloudlet);
         }
-        getCloudletList().removeAll(successfullySubmittedToCP);
 
         // Sleep for ~1 second to allow the scheduler time to do its job, before we check for whether the allocations are done.
         try{
@@ -318,6 +317,9 @@ public class Live_Kubernetes_Broker extends DatacenterBroker {
                 Thread.currentThread().interrupt();
             }
         }
+        Log.printlnConcat(getCloudletList().toString());
+        Log.printlnConcat("SUBMITTING CLOUDLETS....I think?");
+        submitCloudlets();
     }
 
     private void submitCloudletToVmInCloudSim(Cloudlet cloudlet, int vmId) {
@@ -330,13 +332,6 @@ public class Live_Kubernetes_Broker extends DatacenterBroker {
             return;
         }
 
-        if (!Log.isDisabled()) {
-            Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Sending ", cloudlet.getClass().getSimpleName(),
-                    " #", cloudlet.getCloudletId(), " to " + targetVm.getClassName() + " #", targetVm.getId(), " in CloudSim.");
-        }
-
         cloudlet.setGuestId(targetVm.getId());
-        sendNow(getVmsToDatacentersMap().get(targetVm.getId()), CloudActionTags.CLOUDLET_SUBMIT, cloudlet);
-        cloudletsSubmitted++;
     }
 }
