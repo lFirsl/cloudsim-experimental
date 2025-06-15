@@ -1,6 +1,6 @@
 ### CloudSim-Experimental
 
-This is a **Proof of Concept Prototype**.
+This is a **Proof of Concept Prototype** repository, currently in transition to a more mature and thought out implementation.
 
 The goal is to create an extension to CloudSim that allows it to be used 
 as a testing harness for Kubernetes Schedulers.
@@ -34,14 +34,13 @@ The simulation should successfully run, with roughly ~240 cloudlets succeeding.
 
 
 ### To-Do for proper implementation
-Since this is a Proof of Concept Prototype, the code itself is messy
-and not well thought out. Some parts are also generated via AI in the interest of time.
-The objective for this specific prototype is to make something that functionally works to confirm the design is possible.
+This repository started as a Proof of Concept Prototype, meaning the code itself was messy
+and not well thought out.
 
-In the current state, the project functionally works.
+The following is a list of changes that need to be made in the "permanent" implementation. A checkmark means the latest commit implements it.
 
-The following is a list of changes that need to be made in the "permanent" implementation
-
-- Define communication between the CloudSim Broker and Middleware within a single, blocking HTTP call
-  (currently this communication is done via several calls, which makes syncing management difficult)
-- Add a structured way to artifically add time to the simulated time (likely via a scheduled, dummy event with a fixed timestamp).
+- [x] Define communication between the CloudSim Broker and Middleware within a single, blocking HTTP call
+  (previously this communication was done via several calls, which made syncing management difficult).
+- [ ] Add a structured way to artifically add time to the simulated time (likely via a scheduled, dummy event with a fixed timestamp).
+- [ ] Add support for both scheduler extensions (passive service, waiting for http calls to do it's job) and full schedulers (active service, ocassionally checking
+for unscheduled pods instead of waiting for requests)
