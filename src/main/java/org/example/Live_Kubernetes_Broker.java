@@ -2,6 +2,7 @@ package org.example;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import org.cloudbus.cloudsim.Cloudlet;
@@ -193,124 +194,83 @@ public class Live_Kubernetes_Broker extends DatacenterBroker {
     }
 
     protected void submitCloudletsToControlPlane() {
-        Log.println("Submitting cloudlets to Control Plane for scheduling...");
-        List<Cloudlet> successfullySubmittedToCP = new ArrayList<>();
-        com.fasterxml.jackson.databind.ObjectMapper mapper = new ObjectMapper();
+        Log.println("Submitting all cloudlets to Control Plane in a single batch...");
 
-        // This currently sends cloudlets one by one to the control plane.
-        // We then check whether the allocations are done in a separate for loop.
-        // In hindsight, a single array of cloudlets should be sent in one go, and the request should return the allocations as a response.
-        // However, since this is a prototype, this change will be implemented for the proper implementation instead.
-        double sequentialDelay = 0;
-        for (Cloudlet cloudlet : getCloudletList()) {
-            ObjectNode podJsonNode = mapper.createObjectNode();
-            podJsonNode.put("id", cloudlet.getCloudletId());
-            podJsonNode.put("name", "cloudlet-" + cloudlet.getCloudletId());
-            podJsonNode.put("mipsRequested", (int) (cloudlet.getCloudletLength() / cloudlet.getNumberOfPes()));
-            podJsonNode.put("ramRequested", (int) cloudlet.getCloudletFileSize());
+        List<Cloudlet> cloudletList = getCloudletList();
+        List<ObjectNode> podJsonList = new ArrayList<>();
+        ObjectMapper mapper = new ObjectMapper();
 
-            String podJson;
-            try {
-                podJson = mapper.writeValueAsString(podJsonNode);
-            } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
-                Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Error marshalling pod to JSON: ", e.getMessage());
-                continue;
-            }
+        for (Cloudlet cloudlet : cloudletList) {
+            ObjectNode podJson = mapper.createObjectNode();
+            podJson.put("id", cloudlet.getCloudletId());
+            podJson.put("name", "cloudlet-" + cloudlet.getCloudletId());
+            podJson.put("mipsRequested", (int) (cloudlet.getCloudletLength() / cloudlet.getNumberOfPes()));
+            podJson.put("ramRequested", (int) cloudlet.getCloudletFileSize());
 
-            Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Submitting Pod to Control Plane: ", podJson);
+            podJsonList.add(podJson);
+            pendingCloudletsForScheduling.put(cloudlet.getCloudletId(), cloudlet);
+        }
 
+        try {
+            String requestBody = mapper.writeValueAsString(podJsonList);
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(CONTROL_PLANE_URL + "/pods"))
+                    .uri(URI.create(CONTROL_PLANE_URL + "/schedule-pods"))
                     .header("Content-Type", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(podJson))
+                    .POST(HttpRequest.BodyPublishers.ofString(requestBody))
                     .build();
 
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            System.out.println("Requesting: " + CONTROL_PLANE_URL + "/schedule-pods");
 
-            try (Jedis jedis = new Jedis("localhost", 6379)){
-                // Measure time, add the response time as discrete time
-                jedis.publish("nodes_and_pods", podJson);
+            if (response.statusCode() == 200) {
+                ArrayNode scheduledPods = (ArrayNode) mapper.readTree(response.body());
 
-                Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Pod ", cloudlet.getCloudletId(), " submitted successfully to Control Plane.");
-                pendingCloudletsForScheduling.put(cloudlet.getCloudletId(), cloudlet);
-            }
-            successfullySubmittedToCP.add(cloudlet);
-        }
+                for (JsonNode podNode : scheduledPods) {
+                    int cloudletId = podNode.get("id").asInt();
+                    String status = podNode.get("status").asText();
 
-        // Sleep for ~1 second to allow the scheduler time to do its job, before we check for whether the allocations are done.
-        // We should ideally replace this with some sort of proper blocking call.
-        try{
-            Thread.sleep(2000);
-        }
-        catch(Exception e){
-            System.out.println(e.getMessage());
-        }
+                    Cloudlet cloudlet = pendingCloudletsForScheduling.get(cloudletId);
+                    if (cloudlet == null) continue;
 
-
-        //Handle return of cloudlets
-
-        List<Integer> cloudletIdsToProcess = new ArrayList<>(pendingCloudletsForScheduling.keySet());
-        mapper = new ObjectMapper();
-
-        for (Integer cloudletId : cloudletIdsToProcess) {
-            Cloudlet cloudlet = pendingCloudletsForScheduling.get(cloudletId);
-            if (cloudlet == null) continue;
-
-            String url = CONTROL_PLANE_URL + "/pods/" + cloudletId + "/status";
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(url))
-                    .GET()
-                    .build();
-
-            try {
-                HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-                if (response.statusCode() == 200) {
-                    String responseBody = response.body();
-                    try {
-                        JsonNode rootNode = mapper.readTree(responseBody);
-                        String status = rootNode.get("status").asText();
-                        Log.printlnConcat("This node has a status of: ", status);
-
-                        switch (status) {
-                            case "Scheduled" -> {
-                                String nodeName = rootNode.has("nodeName") ? rootNode.get("nodeName").asText() : "N/A";
-                                int nodeID = rootNode.has("vmId") ? rootNode.get("vmId").asInt() : -1;
-                                Log.printlnConcat("This node has been scheduled for this VM: ", nodeID);
-
-                                if (nodeID != -1) {
-                                    Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Pod ", cloudletId, " scheduled on Node ", nodeName, " (VM ID ", nodeID, ")");
-                                    submitCloudletToVmInCloudSim(cloudlet, nodeID);
-                                    pendingCloudletsForScheduling.remove(cloudletId);
-                                } else {
-                                    Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": WARNING: Pod ", cloudletId, " scheduled, but missing or invalid VM ID in response: ", responseBody);
-                                    cloudlet.setCloudletStatus(Cloudlet.CloudletStatus.FAILED);
-                                    getCloudletReceivedList().add(cloudlet);
-                                    pendingCloudletsForScheduling.remove(cloudletId);
-                                }
-                            }
-                            case "Unschedulable" -> {
-                                Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Pod ", cloudletId, " reported as Unschedulable by Control Plane. Marking as failed.");
+                    switch (status) {
+                        case "Scheduled" -> {
+                            int nodeID = podNode.has("vmId") ? podNode.get("vmId").asInt() : -1;
+                            String nodeName = podNode.has("nodeName") ? podNode.get("nodeName").asText() : "N/A";
+                            Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Pod ", cloudletId,
+                                    " scheduled on Node ", nodeName, " (VM ID ", nodeID, ")");
+                            if (nodeID != -1) {
+                                submitCloudletToVmInCloudSim(cloudlet, nodeID);
+                            } else {
                                 cloudlet.setCloudletStatus(Cloudlet.CloudletStatus.FAILED);
                                 getCloudletReceivedList().add(cloudlet);
-                                pendingCloudletsForScheduling.remove(cloudletId);
                             }
-                            case null, default ->
-                                    Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Pod ", cloudletId, " has unknown status: ", status, " Response: ", responseBody);
                         }
-                    } catch (Exception e) {
-                        Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Error parsing JSON response for Pod ", cloudletId, ": ", e.getMessage(), " Response: ", responseBody);
+                        case "Unschedulable" -> {
+                            Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Pod ", cloudletId, " is unschedulable.");
+                            cloudlet.setCloudletStatus(Cloudlet.CloudletStatus.FAILED);
+                            getCloudletReceivedList().add(cloudlet);
+                        }
+                        default -> {
+                            Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Unknown status for Pod ", cloudletId, ": ", status);
+                            cloudlet.setCloudletStatus(Cloudlet.CloudletStatus.FAILED);
+                            getCloudletReceivedList().add(cloudlet);
+                        }
                     }
-                } else {
-                    Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Failed to get status for Pod ", cloudletId, ", status: ", response.statusCode(), " Body: ", response.body());
+
+                    pendingCloudletsForScheduling.remove(cloudletId);
                 }
-            } catch (IOException | InterruptedException e) {
-                Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Network error querying status for Pod ", cloudletId, ": ", e.getMessage());
-                Thread.currentThread().interrupt();
+            } else {
+                Log.printlnConcat(getName(), ": Failed to batch schedule cloudlets. HTTP ", response.statusCode());
             }
+
+        } catch (Exception e) {
+            Log.printlnConcat(getName(), ": Error submitting cloudlets batch: ", e.getMessage());
         }
-        Log.printlnConcat(getCloudletList().toString());
-        Log.printlnConcat("SUBMITTING CLOUDLETS....I think?");
+
+        Log.printlnConcat("Finished scheduling batch. Submitting to CloudSim.");
         submitCloudlets();
     }
+
 
     private void submitCloudletToVmInCloudSim(Cloudlet cloudlet, int vmId) {
         GuestEntity targetVm = VmList.getById(getGuestsCreatedList(), vmId);
