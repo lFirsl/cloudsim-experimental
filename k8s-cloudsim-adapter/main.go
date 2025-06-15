@@ -132,31 +132,39 @@ func handleNodes(w http.ResponseWriter, r *http.Request) {
 
 // handlePods receives a single pod from CloudSim for scheduling.
 // This endpoint adds a new pod to the control plane's pending queue.
-func handlePods(w http.ResponseWriter, r *http.Request) {
-	// Only allow POST requests.
-	if r.Method != http.MethodPost {
-		http.Error(w, "Only POST method is allowed", http.StatusMethodNotAllowed)
-		return
+func handlePodsChannel() {
+	rdb := redis.NewClient(&redis.Options{
+		Addr: "localhost:6379",
+	})
+
+	sub := rdb.Subscribe(ctx, "nodes_and_pods")
+	_, err := sub.Receive(ctx)
+	if err != nil {
+		log.Fatalf("Subscribe failed: %v", err)
 	}
 
-	var newPod Pod
-	// Decode the JSON request body into the newPod struct.
-	if err := json.NewDecoder(r.Body).Decode(&newPod); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
+	ch := sub.Channel()
+	log.Println("Subscribed to Redis channel: nodes_and_pods")
+
+	for msg := range ch {
+		var newPod Pod
+		err := json.Unmarshal([]byte(msg.Payload), &newPod)
+		if err != nil {
+			log.Printf("Failed to decode pod JSON: %v\nPayload: %s", err, msg.Payload)
+			continue
+		}
+
+		// Set initial status if not provided
+		if newPod.Status == "" {
+			newPod.Status = "Pending"
+		}
+
+		mu.Lock()
+		pods[newPod.ID] = &newPod
+		mu.Unlock()
+
+		log.Printf("Received Pod for scheduling from Redis: %+v\n", newPod)
 	}
-
-	// Acquire a write lock to safely modify the shared 'pods' map.
-	mu.Lock()
-	defer mu.Unlock()
-
-	newPod.Status = "Pending" // Set initial status to Pending
-	pods[newPod.ID] = &newPod // Add the new pod to the map
-	log.Printf("Received Pod for scheduling: %+v\n", newPod)
-
-	// Send a 201 Created status code for successful resource creation.
-	w.WriteHeader(http.StatusCreated)
-	fmt.Fprintf(w, "Pod %d submitted for scheduling\n", newPod.ID)
 }
 
 // handlePodStatus returns the current status of a specific pod.
@@ -390,11 +398,11 @@ func main() {
 
 	// Register HTTP handlers for different API endpoints.
 	http.HandleFunc("/nodes", handleNodes)
-	http.HandleFunc("/pods", handlePods)
 	http.HandleFunc("/pods/", handlePodStatus) // Handles requests like /pods/{id}/status
 
 	// Start the background goroutine for the scheduler loop.
-	go subscribeToChannel() // Start listener in a goroutine - for redis experimentation.
+	//go subscribeToChannel() // Start listener in a goroutine - for redis experimentation.
+	go handlePodsChannel()
 	go schedulerLoop(extenderURL)
 
 	// Start the HTTP server and log any fatal errors (e.g., port already in use).

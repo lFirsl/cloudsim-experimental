@@ -180,13 +180,6 @@ public class Live_Kubernetes_Broker extends DatacenterBroker {
                 .build();
 
         try {
-            // Right now does nothing - here to experiment with redis implementation.
-            try (Jedis jedis = new Jedis("localhost", 6379)) {
-                String channel = "nodes_and_pods";
-                String message = "hello from Java!";
-                jedis.publish(channel, message);
-                System.out.println("Published message: " + message);
-            }
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() == 200) {
                 Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": All Nodes sent successfully to Control Plane.");
@@ -232,28 +225,13 @@ public class Live_Kubernetes_Broker extends DatacenterBroker {
                     .POST(HttpRequest.BodyPublishers.ofString(podJson))
                     .build();
 
-            try {
+
+            try (Jedis jedis = new Jedis("localhost", 6379)){
                 // Measure time, add the response time as discrete time
-                long startTime = System.nanoTime();
-                HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-                long endTime = System.nanoTime();
-                double realWorldDurationSeconds = (endTime - startTime) / 1_000_000_000.0;
-                double timeToUse = Math.max(realWorldDurationSeconds, CloudSim.getMinTimeBetweenEvents());
+                jedis.publish("nodes_and_pods", podJson);
 
-                schedule(getId(), timeToUse + sequentialDelay, CloudActionTags.BLANK);
-                Log.printlnConcat(CloudSim.clock(), ": Scheduled blank event for", timeToUse + sequentialDelay);
-                sequentialDelay += timeToUse;
-
-
-                if (response.statusCode() == 201) {
-                    Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Pod ", cloudlet.getCloudletId(), " submitted successfully to Control Plane.");
-                    pendingCloudletsForScheduling.put(cloudlet.getCloudletId(), cloudlet);
-                } else {
-                    Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Failed to submit Pod ", cloudlet.getCloudletId(), ", status: ", response.statusCode(), " Body: ", response.body());
-                }
-            } catch (IOException | InterruptedException e) {
-                Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Error submitting Pod ", cloudlet.getCloudletId(), ": ", e.getMessage());
-                Thread.currentThread().interrupt();
+                Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Pod ", cloudlet.getCloudletId(), " submitted successfully to Control Plane.");
+                pendingCloudletsForScheduling.put(cloudlet.getCloudletId(), cloudlet);
             }
             successfullySubmittedToCP.add(cloudlet);
         }
@@ -261,7 +239,7 @@ public class Live_Kubernetes_Broker extends DatacenterBroker {
         // Sleep for ~1 second to allow the scheduler time to do its job, before we check for whether the allocations are done.
         // We should ideally replace this with some sort of proper blocking call.
         try{
-            Thread.sleep(1000);
+            Thread.sleep(2000);
         }
         catch(Exception e){
             System.out.println(e.getMessage());
@@ -290,11 +268,13 @@ public class Live_Kubernetes_Broker extends DatacenterBroker {
                     try {
                         JsonNode rootNode = mapper.readTree(responseBody);
                         String status = rootNode.get("status").asText();
+                        Log.printlnConcat("This node has a status of: ", status);
 
                         switch (status) {
                             case "Scheduled" -> {
                                 String nodeName = rootNode.has("nodeName") ? rootNode.get("nodeName").asText() : "N/A";
                                 int nodeID = rootNode.has("vmId") ? rootNode.get("vmId").asInt() : -1;
+                                Log.printlnConcat("This node has been scheduled for this VM: ", nodeID);
 
                                 if (nodeID != -1) {
                                     Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Pod ", cloudletId, " scheduled on Node ", nodeName, " (VM ID ", nodeID, ")");
