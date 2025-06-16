@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	simulator "k8s-cloudsim-adapter/k8s-simulator"
 	"k8s-cloudsim-adapter/utils"
+	corev1 "k8s.io/api/core/v1"
 	"log"
 	"net/http"
 	"strconv"
@@ -103,8 +105,24 @@ func (c *Communicator) HandleBatchPods(w http.ResponseWriter, r *http.Request) {
 	}
 	c.mu.Unlock()
 
-	log.Printf("Received %d pods for batch scheduling\n", len(newPods))
-	c.SchedulePendingPods()
+	// Scheduler segment
+
+	k8sPods := []*corev1.Pod{}
+	for _, p := range newPods {
+		k8sPods = append(k8sPods, convertToK8sPod(&p))
+	}
+	k8sNodes := convertToK8sNodeList(c.getNodesSnapshot()) // add helper
+
+	sched := simulator.NewScheduler(c.extenderURL)
+	updatedPods := sched.Schedule(k8sPods, utils.ToPointerSlice(k8sNodes.Items))
+
+	// Convert back to CsPods and update internal state
+	for _, pod := range updatedPods {
+		csPod := convertFromK8sPod(pod) // you’d write this
+		c.pods[csPod.ID] = &csPod
+	}
+	
+	// End scheduling segment
 
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -241,4 +259,14 @@ func callExtenderPrioritize(url string, args ExtenderArgs) (HostPriorityList, er
 		return nil, fmt.Errorf("failed to decode extender prioritize result: %w", err)
 	}
 	return result, nil
+}
+
+func (c *Communicator) getNodesSnapshot() []CsNode {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	nodes := make([]CsNode, 0, len(c.nodes))
+	for _, n := range c.nodes {
+		nodes = append(nodes, n)
+	}
+	return nodes
 }

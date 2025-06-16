@@ -48,6 +48,16 @@ func convertToK8sNodeList(nodes []CsNode) *corev1.NodeList {
 	return &corev1.NodeList{Items: k8sNodes}
 }
 
+func convertFromK8sPod(p *corev1.Pod) CsPod {
+	// You’ll need to find a way to reverse-map pod.Name to ID, or embed it in annotations
+	return CsPod{
+		Name:     p.Name,
+		Status:   "Scheduled",
+		NodeName: p.Spec.NodeName,
+		// Add NodeID if available in map/annotation
+	}
+}
+
 func resourceQuantityFromMIPS(mips int) *resource.Quantity {
 	q := resource.NewMilliQuantity(int64(mips), resource.DecimalSI)
 	return q
