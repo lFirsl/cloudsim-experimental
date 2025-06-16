@@ -1,4 +1,4 @@
-package main
+package communicator
 
 // CsNode represents a simulated Kubernetes CsNode (which maps to a CloudSim VM or Container).
 type CsNode struct {

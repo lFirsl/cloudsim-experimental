@@ -1,24 +1,10 @@
-package main
+package communicator
 
 import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"strings"
 )
-
-// splitPath is a helper function to robustly split a URL path into segments,
-// handling leading/trailing slashes and empty segments.
-func splitPath(path string) []string {
-	parts := strings.Split(path, "/")
-	var cleanedParts []string
-	for _, part := range parts {
-		if part != "" {
-			cleanedParts = append(cleanedParts, part)
-		}
-	}
-	return cleanedParts
-}
 
 func convertToK8sPod(p *CsPod) *corev1.Pod {
 	return &corev1.Pod{

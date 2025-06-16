@@ -1,9 +1,10 @@
-package main
+package communicator
 
 import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"k8s-cloudsim-adapter/utils"
 	"log"
 	"net/http"
 	"strconv"
@@ -55,7 +56,7 @@ func (c *Communicator) HandlePodStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pathSegments := splitPath(r.URL.Path)
+	pathSegments := utils.SplitPath(r.URL.Path)
 	if len(pathSegments) < 3 || pathSegments[len(pathSegments)-1] != "status" || pathSegments[len(pathSegments)-3] != "pods" {
 		http.Error(w, "Invalid URL path. Expected /pods/{id}/status", http.StatusBadRequest)
 		return

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"k8s-cloudsim-adapter/communicator"
 	"log"
 	"net/http"
 )
@@ -14,7 +15,7 @@ func main() {
 	log.Printf("Configured to call scheduler extender at %s\n", extenderURL)
 
 	// Register HTTP handlers for different API endpoints.
-	comm := NewCommunicator("http://localhost:8081")
+	comm := communicator.NewCommunicator("http://localhost:8081")
 	http.HandleFunc("/nodes", comm.HandleNodes)
 	http.HandleFunc("/schedule-pods", comm.HandleBatchPods)
 	http.HandleFunc("/pods/", comm.HandlePodStatus)
