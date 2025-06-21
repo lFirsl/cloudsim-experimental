@@ -1,26 +1,102 @@
-﻿package simulator
+package simulator
 
-import v1 "k8s.io/api/core/v1"
+import (
+	"encoding/json"
+	"github.com/gorilla/mux"
+	"io"
+	"k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"log"
+	"net/http"
+)
 
-type Scheduler struct {
+type K8sSimulator struct {
 	ExtenderURL string
-	Nodes       []*v1.Node
-	Pods        []*v1.Pod
+	Nodes       []v1.Node
+	Pods        []v1.Pod
 }
 
-func NewScheduler(url string) *Scheduler {
-	return &Scheduler{
+func NewSimulator(url string) *K8sSimulator {
+	return &K8sSimulator{
 		ExtenderURL: url,
 	}
 }
 
-func (s *Scheduler) Schedule(pods []*v1.Pod, nodes []*v1.Node) []*v1.Pod {
-	s.Pods = pods
-	s.Nodes = nodes
+func (sim *K8sSimulator) ServePods(w http.ResponseWriter, r *http.Request) {
+	log.Printf("Attempting to return PODS!")
+	podList := v1.PodList{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "PodList",
+			APIVersion: "v1",
+		},
+		ListMeta: metav1.ListMeta{
+			ResourceVersion: "1",
+		},
+		Items: sim.Pods,
+	}
 
-	// for each pod, call extender filter + prioritize and mutate pod.Spec.NodeName
-	// You can pull over your existing logic from SchedulePendingPods (adapted for corev1 types)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(podList)
+}
 
-	// After scheduling, return the updated pods
-	return s.Pods
+// ServeNodes returns a valid Kubernetes-style NodeList
+func (sim *K8sSimulator) ServeNodes(w http.ResponseWriter, r *http.Request) {
+	log.Printf("Attempting to return NODES!")
+	nodeList := v1.NodeList{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "NodeList",
+			APIVersion: "v1",
+		},
+		ListMeta: metav1.ListMeta{
+			ResourceVersion: "1",
+		},
+		Items: sim.Nodes,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(nodeList)
+}
+
+// PatchPod updates the spec.nodeName of the targeted Pod
+func (sim *K8sSimulator) PatchPod(w http.ResponseWriter, r *http.Request) {
+	log.Printf("Attempting to PATCH!")
+	vars := mux.Vars(r)
+	namespace := vars["namespace"]
+	name := vars["name"]
+
+	// Read and parse the patch body
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "unable to read patch body", http.StatusBadRequest)
+		return
+	}
+	defer r.Body.Close()
+
+	var patch struct {
+		Spec struct {
+			NodeName string `json:"nodeName"`
+		} `json:"spec"`
+	}
+
+	if err := json.Unmarshal(body, &patch); err != nil {
+		http.Error(w, "invalid patch format", http.StatusBadRequest)
+		return
+	}
+
+	// Find the Pod and update it
+	for i := range sim.Pods {
+		pod := &sim.Pods[i]
+		if pod.ObjectMeta.Name == name && pod.ObjectMeta.Namespace == namespace {
+			pod.Spec.NodeName = patch.Spec.NodeName
+
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(pod)
+			return
+		}
+	}
+
+	http.Error(w, "pod not found", http.StatusNotFound)
 }
