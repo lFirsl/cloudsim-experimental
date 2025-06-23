@@ -4,9 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	simulator "k8s-cloudsim-adapter/k8s-simulator"
 	"k8s-cloudsim-adapter/utils"
-	corev1 "k8s.io/api/core/v1"
 	"log"
 	"net/http"
 	"strconv"
@@ -82,59 +80,60 @@ func (c *Communicator) HandlePodStatus(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(pod)
 }
 
-func (c *Communicator) HandleBatchPods(w http.ResponseWriter, r *http.Request) {
-	log.Printf("Starting handleBatchPods()")
-	if r.Method != http.MethodPost {
-		http.Error(w, "Only POST method is allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	var newPods []CsPod
-	if err := json.NewDecoder(r.Body).Decode(&newPods); err != nil {
-		http.Error(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	c.mu.Lock()
-	for i := range newPods {
-		if newPods[i].Status == "" {
-			newPods[i].Status = "Pending"
-		}
-		podCopy := newPods[i]
-		c.pods[podCopy.ID] = &podCopy
-	}
-	c.mu.Unlock()
-
-	// Scheduler segment
-
-	k8sPods := []*corev1.Pod{}
-	for _, p := range newPods {
-		k8sPods = append(k8sPods, convertToK8sPod(&p))
-	}
-	k8sNodes := convertToK8sNodeList(c.getNodesSnapshot()) // add helper
-
-	sched := simulator.NewScheduler(c.extenderURL)
-	updatedPods := sched.Schedule(k8sPods, utils.ToPointerSlice(k8sNodes.Items))
-
-	// Convert back to CsPods and update internal state
-	for _, pod := range updatedPods {
-		csPod := convertFromK8sPod(pod) // you’d write this
-		c.pods[csPod.ID] = &csPod
-	}
-	
-	// End scheduling segment
-
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	var finalPods []CsPod
-	for _, pod := range newPods {
-		if storedPod, ok := c.pods[pod.ID]; ok {
-			finalPods = append(finalPods, *storedPod)
-		}
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(finalPods)
-}
+//
+//func (c *Communicator) HandleBatchPods(w http.ResponseWriter, r *http.Request) {
+//	log.Printf("Starting handleBatchPods()")
+//	if r.Method != http.MethodPost {
+//		http.Error(w, "Only POST method is allowed", http.StatusMethodNotAllowed)
+//		return
+//	}
+//
+//	var newPods []CsPod
+//	if err := json.NewDecoder(r.Body).Decode(&newPods); err != nil {
+//		http.Error(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
+//		return
+//	}
+//
+//	c.mu.Lock()
+//	for i := range newPods {
+//		if newPods[i].Status == "" {
+//			newPods[i].Status = "Pending"
+//		}
+//		podCopy := newPods[i]
+//		c.pods[podCopy.ID] = &podCopy
+//	}
+//	c.mu.Unlock()
+//
+//	// K8sSimulator segment
+//
+//	k8sPods := []*corev1.Pod{}
+//	for _, p := range newPods {
+//		k8sPods = append(k8sPods, convertToK8sPod(&p))
+//	}
+//	k8sNodes := convertToK8sNodeList(c.getNodesSnapshot()) // add helper
+//
+//	sched := simulator.NewSimulator(c.extenderURL)
+//	updatedPods := sched.Schedule(k8sPods, utils.ToPointerSlice(k8sNodes.Items))
+//
+//	// Convert back to CsPods and update internal state
+//	for _, pod := range updatedPods {
+//		csPod := convertFromK8sPod(pod) // you’d write this
+//		c.pods[csPod.ID] = &csPod
+//	}
+//
+//	// End scheduling segment
+//
+//	c.mu.RLock()
+//	defer c.mu.RUnlock()
+//	var finalPods []CsPod
+//	for _, pod := range newPods {
+//		if storedPod, ok := c.pods[pod.ID]; ok {
+//			finalPods = append(finalPods, *storedPod)
+//		}
+//	}
+//	w.Header().Set("Content-Type", "application/json")
+//	json.NewEncoder(w).Encode(finalPods)
+//}
 
 func (c *Communicator) SchedulePendingPods() {
 	c.mu.RLock()

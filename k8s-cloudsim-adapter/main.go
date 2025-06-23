@@ -1,11 +1,15 @@
 package main
 
 import (
+	"flag"
+	"fmt"
 	"github.com/gorilla/mux"
 	"k8s-cloudsim-adapter/communicator"
-	simulator "k8s-cloudsim-adapter/k8s-simulator"
+	"k8s-cloudsim-adapter/kube_client"
+	"k8s.io/client-go/util/homedir"
 	"log"
 	"net/http"
+	"path/filepath"
 )
 
 func main() {
@@ -17,31 +21,38 @@ func main() {
 	log.Printf("Configured to call scheduler extender at %s\n", extenderURL)
 
 	// Initialize simulator and communicator
-	sim := simulator.NewSimulator(extenderURL)
 	comm := communicator.NewCommunicator(extenderURL)
-
-	// Add test nodes
-	sim.AddTestNode("node-1", "4", "8Gi")
-	sim.AddTestNode("node-2", "2", "4Gi")
-
-	// Add test pods
-	sim.AddTestPod("nginx-pod", "default", "nginx:latest")
-	sim.AddTestPod("busybox-pod", "default", "busybox")
 
 	// Set up router
 	router := mux.NewRouter()
-
-	// --- Kubernetes-compatible API endpoints (for the scheduler) ---
-	router.HandleFunc("/api/v1/pods", sim.ServePods).Methods("GET")
-	router.HandleFunc("/api/v1/nodes", sim.ServeNodes).Methods("GET")
-	router.HandleFunc("/api/v1/namespaces/{namespace}/pods/{name}/status", sim.PatchPod).Methods("PATCH")
 
 	// --- Internal simulation/control endpoints ---
 	router.HandleFunc("/nodes", comm.HandleNodes).Methods("POST")
 	// router.HandleFunc("/schedule-pods", comm.HandleBatchPods).Methods("POST") // ✅ External batch pod submitter (WIP)
 	router.HandleFunc("/pods/", comm.HandlePodStatus).Methods("POST")
 
+	//==========K8S=SETUP
+	var kubeconfig *string
+	if home := homedir.HomeDir(); home != "" {
+		kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
+	} else {
+		kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
+	}
+	flag.Parse()
+	kc := kube_client.NewKubeClient(*kubeconfig)
+
+	pods, err := kc.GetPods("default")
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println("Pods in default namespace:")
+	for _, name := range pods {
+		fmt.Println(" -", name)
+	}
+
 	// Start server
 	log.Printf("Serving HTTP API on %s\n", port)
 	log.Fatal(http.ListenAndServe("0.0.0.0:8080", router)) // ✅ GOOD: this listens on all IPs
+
 }
