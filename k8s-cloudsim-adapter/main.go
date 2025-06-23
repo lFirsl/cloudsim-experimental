@@ -46,13 +46,19 @@ func main() {
 		panic(err)
 	}
 
+	//For verification purposes
 	fmt.Println("Pods in default namespace:")
 	for _, name := range pods {
 		fmt.Println(" -", name)
 	}
 
+	router.HandleFunc("/pods/create", kube_client.MakeCreatePodHandler(kc))
+	router.HandleFunc("/pods/delete", kube_client.MakeDeletePodHandler(kc))
+	router.HandleFunc("/nodes/create", kube_client.MakeCreateNodeHandler(kc))
+	router.HandleFunc("/nodes/delete", kube_client.MakeDeleteNodeHandler(kc))
+
 	// Start server
 	log.Printf("Serving HTTP API on %s\n", port)
-	log.Fatal(http.ListenAndServe("0.0.0.0:8080", router)) // ✅ GOOD: this listens on all IPs
+	log.Fatal(http.ListenAndServe("0.0.0.0:8080", router))
 
 }
