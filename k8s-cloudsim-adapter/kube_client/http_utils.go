@@ -90,3 +90,33 @@ func MakeDeleteNodeHandler(kc *KubeClient) http.HandlerFunc {
 		})
 	}
 }
+
+func (kc *KubeClient) HandleDeleteAllPods(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		http.Error(w, "Only DELETE allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if err := kc.DeleteAllPods(); err != nil {
+		http.Error(w, "Failed to delete pods: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("All pods deleted"))
+}
+
+func (kc *KubeClient) HandleDeleteAllNodes(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		http.Error(w, "Only DELETE allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if err := kc.DeleteAllNodes(); err != nil {
+		http.Error(w, "Failed to delete nodes: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("All nodes deleted"))
+}

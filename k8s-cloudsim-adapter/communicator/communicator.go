@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"k8s-cloudsim-adapter/kube_client"
 	"k8s-cloudsim-adapter/utils"
 	"log"
 	"net/http"
 	"strconv"
 	"sync"
+	"time"
 )
 
 type Communicator struct {
@@ -16,16 +18,19 @@ type Communicator struct {
 	mu          sync.RWMutex
 	nodes       map[int]CsNode
 	pods        map[int]*CsPod
+	kubeClient  *kube_client.KubeClient // <--- ADD THIS
 }
 
-func NewCommunicator(url string) *Communicator {
+func NewCommunicator(url string, kc *kube_client.KubeClient) *Communicator {
 	return &Communicator{
 		extenderURL: url,
 		nodes:       make(map[int]CsNode),
 		pods:        make(map[int]*CsPod),
+		kubeClient:  kc,
 	}
 }
 
+// NOTE: This is currently a full replace. You'll need to change it if you want a merge.
 func (c *Communicator) HandleNodes(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Only POST method is allowed", http.StatusMethodNotAllowed)
@@ -38,16 +43,48 @@ func (c *Communicator) HandleNodes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Step 1: Update internal map
 	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	c.nodes = make(map[int]CsNode)
 	for _, node := range newNodes {
 		c.nodes[node.ID] = node
 	}
+	c.mu.Unlock()
+
 	log.Printf("Received %d nodes from CloudSim. Current node count: %d\n", len(newNodes), len(c.nodes))
+
+	// Step 2: Send them to Kubernetes
+	if err := c.SendFakeNodesFromCs(newNodes); err != nil {
+		http.Error(w, "Failed to send nodes to Kubernetes: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Wait for all nodes to be ready
+	const maxAttempts = 20
+	const delay = time.Second
+
+	ready := false
+	for i := 0; i < maxAttempts; i++ {
+		ok, err := c.kubeClient.AreAllNodesReady()
+		if err != nil {
+			http.Error(w, "Error checking node readiness: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if ok {
+			ready = true
+			break
+		}
+		time.Sleep(delay)
+	}
+
+	if !ready {
+		http.Error(w, "Timeout: Not all nodes became ready in time", http.StatusRequestTimeout)
+		return
+	}
+
+	// Step 3: Respond success
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, "Received %d nodes\n", len(newNodes))
+	fmt.Fprintf(w, "Received and sent %d nodes to Kubernetes\n", len(newNodes))
 }
 
 func (c *Communicator) HandlePodStatus(w http.ResponseWriter, r *http.Request) {
@@ -80,60 +117,81 @@ func (c *Communicator) HandlePodStatus(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(pod)
 }
 
-//
-//func (c *Communicator) HandleBatchPods(w http.ResponseWriter, r *http.Request) {
-//	log.Printf("Starting handleBatchPods()")
-//	if r.Method != http.MethodPost {
-//		http.Error(w, "Only POST method is allowed", http.StatusMethodNotAllowed)
-//		return
-//	}
-//
-//	var newPods []CsPod
-//	if err := json.NewDecoder(r.Body).Decode(&newPods); err != nil {
-//		http.Error(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
-//		return
-//	}
-//
-//	c.mu.Lock()
-//	for i := range newPods {
-//		if newPods[i].Status == "" {
-//			newPods[i].Status = "Pending"
-//		}
-//		podCopy := newPods[i]
-//		c.pods[podCopy.ID] = &podCopy
-//	}
-//	c.mu.Unlock()
-//
-//	// K8sSimulator segment
-//
-//	k8sPods := []*corev1.Pod{}
-//	for _, p := range newPods {
-//		k8sPods = append(k8sPods, convertToK8sPod(&p))
-//	}
-//	k8sNodes := convertToK8sNodeList(c.getNodesSnapshot()) // add helper
-//
-//	sched := simulator.NewSimulator(c.extenderURL)
-//	updatedPods := sched.Schedule(k8sPods, utils.ToPointerSlice(k8sNodes.Items))
-//
-//	// Convert back to CsPods and update internal state
-//	for _, pod := range updatedPods {
-//		csPod := convertFromK8sPod(pod) // you’d write this
-//		c.pods[csPod.ID] = &csPod
-//	}
-//
-//	// End scheduling segment
-//
-//	c.mu.RLock()
-//	defer c.mu.RUnlock()
-//	var finalPods []CsPod
-//	for _, pod := range newPods {
-//		if storedPod, ok := c.pods[pod.ID]; ok {
-//			finalPods = append(finalPods, *storedPod)
-//		}
-//	}
-//	w.Header().Set("Content-Type", "application/json")
-//	json.NewEncoder(w).Encode(finalPods)
-//}
+func (c *Communicator) HandleBatchPods(w http.ResponseWriter, r *http.Request) {
+	log.Printf("Starting HandleBatchPods()")
+
+	if r.Method != http.MethodPost {
+		http.Error(w, "Only POST method is allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Step 1: Decode input
+	var newPods []CsPod
+	if err := json.NewDecoder(r.Body).Decode(&newPods); err != nil {
+		http.Error(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Step 2: Track them in communicator memory
+	c.mu.Lock()
+	for i := range newPods {
+		if newPods[i].Status == "" {
+			newPods[i].Status = "Pending"
+		}
+		podCopy := newPods[i]
+		c.pods[podCopy.ID] = &podCopy
+	}
+	c.mu.Unlock()
+
+	// Step 3: Send to Kubernetes
+	if err := c.SendFakePodsFromCs(newPods); err != nil {
+		http.Error(w, "Failed to send pods to Kubernetes: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	log.Printf("Sent %d fake pods to Kubernetes", len(newPods))
+
+	// Step 4: Wait until they are all scheduled
+	const maxAttempts = 30
+	const delay = time.Second
+	scheduled := false
+
+	for i := 0; i < maxAttempts; i++ {
+		ok, err := c.kubeClient.AreAllPodsScheduled("")
+		if err != nil {
+			http.Error(w, "Error checking pod scheduling: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if ok {
+			scheduled = true
+			break
+		}
+		time.Sleep(delay)
+	}
+
+	if !scheduled {
+		http.Error(w, "Timeout: Not all pods were scheduled in time", http.StatusRequestTimeout)
+		return
+	}
+
+	// Step 5: Fetch from Kubernetes
+	k8sPods, err := c.kubeClient.GetPods("default")
+	if err != nil {
+		http.Error(w, "Failed to fetch pods from Kubernetes: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Step 6: Convert to []CsPod
+	csPods := ConvertToCsPods(k8sPods)
+
+	log.Printf("Pods scheduling success - returning response")
+
+	// Step 7: Return result
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(csPods); err != nil {
+		http.Error(w, "Failed to encode response: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
 
 func (c *Communicator) SchedulePendingPods() {
 	c.mu.RLock()
