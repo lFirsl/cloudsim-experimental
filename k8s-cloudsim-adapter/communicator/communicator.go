@@ -84,7 +84,7 @@ func (c *Communicator) HandleNodes(w http.ResponseWriter, r *http.Request) {
 
 	// Step 3: Respond success
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, "Received and sent %d nodes to Kubernetes\n", len(newNodes))
+	log.Println(w, "Received and sent %d nodes to Kubernetes\n", len(newNodes))
 }
 
 func (c *Communicator) HandlePodStatus(w http.ResponseWriter, r *http.Request) {
@@ -184,6 +184,9 @@ func (c *Communicator) HandleBatchPods(w http.ResponseWriter, r *http.Request) {
 	csPods := ConvertToCsPods(k8sPods)
 
 	log.Printf("Pods scheduling success - returning response")
+	for podID, pod := range csPods {
+		log.Println("Pod", podID, "assigned to node", pod.NodeID)
+	}
 
 	// Step 7: Return result
 	w.Header().Set("Content-Type", "application/json")

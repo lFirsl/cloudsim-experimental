@@ -5,6 +5,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -23,8 +24,7 @@ func (c *Communicator) SendFakePodFromCs(csPod CsPod) error {
 				"app": csPod.Name,
 			},
 			Annotations: map[string]string{
-				"cloudsim.io/id":    fmt.Sprintf("%d", csPod.ID),
-				"cloudsim.io/vm-id": fmt.Sprintf("%d", csPod.NodeID),
+				"cloudsim.io/id": fmt.Sprintf("%d", csPod.ID),
 			},
 		},
 		Spec: corev1.PodSpec{
@@ -158,9 +158,10 @@ func (c *Communicator) SendFakeNodesFromCs(csNodes []CsNode) error {
 
 func ConvertToCsPod(k8sPod *corev1.Pod) CsPod {
 	id := 0
-	nodeID := 0
+	nodeID := -1
 	mips := 0
 	ram := 0
+	status := "Unschedulable"
 
 	// Extract ID from pod name like "cspod-42"
 	if strings.HasPrefix(k8sPod.Name, "cspod-") {
@@ -177,9 +178,14 @@ func ConvertToCsPod(k8sPod *corev1.Pod) CsPod {
 	}
 
 	// Extract NodeID from annotation
-	if val, ok := k8sPod.Annotations["cloudsim.io/vm-id"]; ok {
-		if parsed, err := strconv.Atoi(val); err == nil {
-			nodeID = parsed
+	if k8sPod.Spec.NodeName != "" {
+		re := regexp.MustCompile(`csnode-(\d+)`)
+		matches := re.FindStringSubmatch(k8sPod.Spec.NodeName)
+		if len(matches) == 2 {
+			if parsed, err := strconv.Atoi(matches[1]); err == nil {
+				nodeID = parsed
+				status = "Scheduled"
+			}
 		}
 	}
 
@@ -200,7 +206,7 @@ func ConvertToCsPod(k8sPod *corev1.Pod) CsPod {
 		Name:          k8sPod.Name,
 		MIPSReq:       mips,
 		RAMReq:        ram,
-		Status:        string(k8sPod.Status.Phase),
+		Status:        status, //string(k8sPod.Status.Phase)
 		NodeName:      k8sPod.Spec.NodeName,
 		NodeID:        nodeID,
 		SchedulerName: k8sPod.Spec.SchedulerName,

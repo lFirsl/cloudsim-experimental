@@ -205,7 +205,7 @@ public class Live_Kubernetes_Broker extends DatacenterBroker {
             podJson.put("id", cloudlet.getCloudletId());
             podJson.put("name", "cloudlet-" + cloudlet.getCloudletId());
             podJson.put("mipsRequested", (int) (cloudlet.getCloudletLength() / cloudlet.getNumberOfPes()));
-            podJson.put("ramRequested", (int) cloudlet.getCloudletFileSize());
+            podJson.put("ramRequested", 256);
 
             podJsonList.add(podJson);
             pendingCloudletsForScheduling.put(cloudlet.getCloudletId(), cloudlet);
