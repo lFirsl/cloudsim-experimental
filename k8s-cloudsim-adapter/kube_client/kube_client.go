@@ -9,6 +9,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/homedir"
+	"k8s.io/utils/pointer"
 	"log"
 	"path/filepath"
 )
@@ -220,7 +221,9 @@ func (kc *KubeClient) CreateFakeNode(name string) error {
 func (kc *KubeClient) DeleteNode(name string) error {
 	return kc.clientset.CoreV1().
 		Nodes().
-		Delete(context.TODO(), name, metav1.DeleteOptions{})
+		Delete(context.TODO(), name, metav1.DeleteOptions{
+			GracePeriodSeconds: pointer.Int64(0),
+		})
 }
 
 func (kc *KubeClient) DeleteNodes(nodes []*corev1.Node) error {
@@ -253,9 +256,10 @@ func (kc *KubeClient) DeleteKwokNodes() error {
 func (kc *KubeClient) DeletePod(podName string) error {
 	return kc.clientset.CoreV1().
 		Pods("default").
-		Delete(context.TODO(), podName, metav1.DeleteOptions{})
+		Delete(context.TODO(), podName, metav1.DeleteOptions{
+			GracePeriodSeconds: pointer.Int64(0),
+		})
 }
-
 func (kc *KubeClient) DeletePods(pods []*corev1.Pod) error {
 	for _, pod := range pods {
 		if err := kc.DeletePod(pod.Name); err != nil {
@@ -295,4 +299,16 @@ func (kc *KubeClient) SendNode(node *corev1.Node) error {
 		Nodes().
 		Create(context.TODO(), node, metav1.CreateOptions{})
 	return err
+}
+
+func (kc *KubeClient) ResetCluster() error {
+	err := kc.DeleteAllNodes()
+	if err != nil {
+		return err
+	}
+	err = kc.DeleteAllPods()
+	if err != nil {
+		return err
+	}
+	return nil
 }

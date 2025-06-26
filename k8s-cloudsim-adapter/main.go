@@ -56,6 +56,7 @@ func main() {
 	router.HandleFunc("/nodes/delete", kube_client.MakeDeleteNodeHandler(kc))
 	router.HandleFunc("/pods/delete-all", kc.HandleDeleteAllPods)
 	router.HandleFunc("/nodes/delete-all", kc.HandleDeleteAllNodes)
+	router.HandleFunc("/reset", kc.HandleResetCluster)
 
 	// Start server
 	log.Printf("Serving HTTP API on %s\n", port)

@@ -2,6 +2,7 @@ package kube_client
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 )
 
@@ -119,4 +120,19 @@ func (kc *KubeClient) HandleDeleteAllNodes(w http.ResponseWriter, r *http.Reques
 
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("All nodes deleted"))
+}
+
+func (kc *KubeClient) HandleResetCluster(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		http.Error(w, "Only DELETE method is allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if err := kc.ResetCluster(); err != nil {
+		http.Error(w, fmt.Sprintf("Failed to reset cluster: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintln(w, "Cluster reset successfully.")
 }
