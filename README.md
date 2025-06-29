@@ -13,7 +13,7 @@ fake K8s equivalents (nodes and pods) using [KWOK](https://kwok.sigs.k8s.io/), t
 cluster to perform scheduling. Following successful scheduling, the adapter returns the results back to CloudSim,
 which interprets them as native CloudSim resources and resumes simulation.
 
-##### Prototype Design
+### Prototype Design
 This design is outdated but roughly showcases the original thought process. Soon to be updated.
 ![](images/CloudSim_Scheduler_Adapter.png)
 
