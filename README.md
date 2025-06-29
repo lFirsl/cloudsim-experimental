@@ -1,6 +1,7 @@
 ### CloudSim-Experimental
 
 This is a **Proof of Concept Prototype** repository, currently in transition to a more mature and thought out implementation.
+This repository and project is part of an MSci Project spanning the 2024-2025 academic year.
 
 The goal is to create an extension to CloudSim that allows it to be used 
 as a testing harness for Kubernetes Schedulers.
