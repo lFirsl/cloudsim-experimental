@@ -6,19 +6,29 @@ type CsNode struct {
 	Name     string `json:"name"`          // Name of the node (e.g., "vm-0", "container-1")
 	MIPSAval int    `json:"mipsAvailable"` // Available MIPS on this node
 	RAMAval  int    `json:"ramAvailable"`  // Available RAM on this node (in MB)
+
+	Pes  int    `json:"pes"`  // Number of processing elements
+	BW   int64  `json:"bw"`   // Bandwidth
+	Size int64  `json:"size"` // Storage size
+	Type string `json:"type"` // "vm" or "container"
 }
 
 // CsPod represents a simulated Kubernetes CsPod (which maps to a CloudSim Cloudlet).
 type CsPod struct {
-	ID       int    `json:"id"`                 // Unique identifier for the pod (CloudSim Cloudlet ID)
-	Name     string `json:"name"`               // Name of the pod (e.g., "cloudlet-0")
-	MIPSReq  int    `json:"mipsRequested"`      // MIPS requested by this pod
-	RAMReq   int    `json:"ramRequested"`       // RAM requested by this pod (in MB)
-	Status   string `json:"status"`             // Current status of the pod ("Pending", "Scheduled", "Unschedulable")
-	NodeName string `json:"nodeName,omitempty"` // The name of the node it's scheduled on (empty if not scheduled)
-	NodeID   int    `json:"vmId"`               // The CloudSim VM/Container ID it's scheduled on.
-	// `omitempty` removed to ensure vmId is always present in JSON, even if 0.
-	SchedulerName string `json:"schedulerName,omitempty"` // Example: if you use a specific scheduler name for this pod
+	ID             int     `json:"id"`
+	Name           string  `json:"name"`
+	Length         int64   `json:"length"`         // cloudletLength
+	Pes            int     `json:"pes"`            // Number of processing elements (cores)
+	FileSize       int64   `json:"fileSize"`       // Input size
+	OutputSize     int64   `json:"outputSize"`     // Output size
+	UtilizationCPU float64 `json:"utilizationCpu"` // 0.0 to 1.0
+	UtilizationRAM float64 `json:"utilizationRam"`
+	UtilizationBW  float64 `json:"utilizationBw"`
+
+	Status        string `json:"status"` // Kubernetes status ("Pending", "Running", etc.)
+	NodeName      string `json:"nodeName,omitempty"`
+	NodeID        int    `json:"vmId"` // CloudSim VM id
+	SchedulerName string `json:"schedulerName,omitempty"`
 }
 
 // --- Simplified Kubernetes Extender API Structs ---

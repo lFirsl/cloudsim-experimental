@@ -12,9 +12,13 @@ import (
 
 // CreateFakePod creates a KWOK-compatible fake pod with predefined spec
 func (c *Communicator) SendFakePodFromCs(csPod CsPod) error {
-	millicores := csPod.MIPSReq / 1000 // or whatever scale
-	cpuStr := fmt.Sprintf("%dm", millicores)
-	fmt.Println("cpuStr:", cpuStr)
+	//cpuStr := fmt.Sprintf("%d", csPod.Pes)
+
+	// RAM: use fileSize or utilizationRam as an estimate (very context dependent)
+	// Temporary hard-coding.
+	//ramMiB := fmt.Sprintf("%d", 0)
+
+	//fmt.Println("cpuStr:", cpuStr)
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -56,16 +60,16 @@ func (c *Communicator) SendFakePodFromCs(csPod CsPod) error {
 				{
 					Name:  "fake-container",
 					Image: "fake-image",
-					Resources: corev1.ResourceRequirements{
-						Requests: corev1.ResourceList{
-							corev1.ResourceCPU:    resource.MustParse(cpuStr), // assume MIPS = millicores
-							corev1.ResourceMemory: resource.MustParse(fmt.Sprintf("%dMi", csPod.RAMReq)),
-						},
-						Limits: corev1.ResourceList{
-							corev1.ResourceCPU:    resource.MustParse(cpuStr),
-							corev1.ResourceMemory: resource.MustParse(fmt.Sprintf("%dMi", csPod.RAMReq)),
-						},
-					},
+					//Resources: corev1.ResourceRequirements{
+					//	Requests: corev1.ResourceList{
+					//		corev1.ResourceCPU:    resource.MustParse(cpuStr), // assume MIPS = millicores
+					//		corev1.ResourceMemory: resource.MustParse(ramMiB),
+					//	},
+					//	Limits: corev1.ResourceList{
+					//		corev1.ResourceCPU:    resource.MustParse(cpuStr),
+					//		corev1.ResourceMemory: resource.MustParse(ramMiB),
+					//	},
+					//},
 				},
 			},
 		},
@@ -88,7 +92,7 @@ func (c *Communicator) SendFakePodsFromCs(csPods []CsPod) error {
 }
 
 func (c *Communicator) SendFakeNodeFromCs(csNode CsNode) error {
-	cpuStr := fmt.Sprintf("%dm", csNode.MIPSAval)
+	cpuStr := fmt.Sprintf("%d", csNode.Pes)
 	ramStr := fmt.Sprintf("%dMi", csNode.RAMAval)
 
 	node := &corev1.Node{
@@ -108,6 +112,9 @@ func (c *Communicator) SendFakeNodeFromCs(csNode CsNode) error {
 				"kwok.x-k8s.io/node":           "fake",
 				"node.alpha.kubernetes.io/ttl": "0",
 				"cloudsim.io/id":               fmt.Sprintf("%d", csNode.ID),
+				"cloudsim.io/type":             csNode.Type,
+				"cloudsim.io/bw":               fmt.Sprintf("%d", csNode.BW),
+				"cloudsim.io/size":             fmt.Sprintf("%d", csNode.Size),
 			},
 		},
 		Spec: corev1.NodeSpec{
@@ -159,8 +166,6 @@ func (c *Communicator) SendFakeNodesFromCs(csNodes []CsNode) error {
 func ConvertToCsPod(k8sPod *corev1.Pod) CsPod {
 	id := 0
 	nodeID := -1
-	mips := 0
-	ram := 0
 	status := "Unschedulable"
 
 	// Extract ID from pod name like "cspod-42"
@@ -189,23 +194,9 @@ func ConvertToCsPod(k8sPod *corev1.Pod) CsPod {
 		}
 	}
 
-	// Extract resource requests
-	if len(k8sPod.Spec.Containers) > 0 {
-		res := k8sPod.Spec.Containers[0].Resources.Requests
-
-		if cpuQty, ok := res[corev1.ResourceCPU]; ok {
-			mips = int(cpuQty.MilliValue()) // 1 millicore = 1 MIPS (assumed)
-		}
-		if memQty, ok := res[corev1.ResourceMemory]; ok {
-			ram = int(memQty.Value() / (1024 * 1024)) // bytes to MiB
-		}
-	}
-
 	return CsPod{
 		ID:            id,
 		Name:          k8sPod.Name,
-		MIPSReq:       mips,
-		RAMReq:        ram,
 		Status:        status, //string(k8sPod.Status.Phase)
 		NodeName:      k8sPod.Spec.NodeName,
 		NodeID:        nodeID,

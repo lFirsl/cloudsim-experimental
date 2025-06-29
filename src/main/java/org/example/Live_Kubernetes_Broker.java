@@ -23,22 +23,17 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
-import org.cloudbus.cloudsim.core.SimEntity;
-
-import redis.clients.jedis.Jedis;
+import java.util.*;
 
 public class Live_Kubernetes_Broker extends DatacenterBroker {
 
     private static final String CONTROL_PLANE_URL = "http://localhost:8080";
     private final HttpClient httpClient;
 
+    //Map of
+    private final Map<Integer, Cloudlet> pendingCloudlets = new HashMap<>();
+
     private final Map<Integer, Cloudlet> pendingCloudletsForScheduling;
-    private boolean initialNodesSent = false;
     // Removed simulationTerminationInitiated flag as it's no longer needed for explicit termination calls.
 
     public Live_Kubernetes_Broker(String name) throws Exception {
@@ -69,7 +64,9 @@ public class Live_Kubernetes_Broker extends DatacenterBroker {
             case CloudActionTags.RESOURCE_CHARACTERISTICS_REQUEST -> processResourceCharacteristicsRequest(ev);
             case CloudActionTags.RESOURCE_CHARACTERISTICS -> processResourceCharacteristics(ev);
             case CloudActionTags.VM_CREATE_ACK -> processVmCreateAck(ev);
-            case CloudActionTags.CLOUDLET_RETURN -> processCloudletReturn(ev);
+            case CloudActionTags.CLOUDLET_RETURN -> {
+                processCloudletReturn(ev);
+            }
             case CloudActionTags.BLANK -> {
                 Log.printlnConcat(CloudSim.clock(), ": Processing blank event to inject time manually.");
             }
@@ -114,11 +111,7 @@ public class Live_Kubernetes_Broker extends DatacenterBroker {
         incrementVmsAcks();
 
         if (getVmsRequested() == getVmsAcks()) {
-            if (!initialNodesSent) {
-                sendNodesToControlPlane();
-                initialNodesSent = true;
-            }
-
+            sendAllActiveNodesToControlPlane();
             if (getGuestsCreatedList().size() == getGuestList().size()) {
                 submitCloudletsToControlPlane();
             } else {
@@ -143,6 +136,49 @@ public class Live_Kubernetes_Broker extends DatacenterBroker {
             }
         }
     }
+    private void sendAllActiveNodesToControlPlane() {
+        List<ObjectNode> nodeJsons = new ArrayList<>();
+        ObjectMapper mapper = new ObjectMapper();
+
+        for (GuestEntity guest : getGuestsCreatedList()) {
+            ObjectNode nodeJson = mapper.createObjectNode();
+            nodeJson.put("id", guest.getId());
+            nodeJson.put("mipsAvailable", (int) guest.getMips());
+            nodeJson.put("ramAvailable", guest.getRam());
+            nodeJson.put("pes", guest.getNumberOfPes());
+            nodeJson.put("bw", guest.getBw());
+            nodeJson.put("size", guest.getSize());
+            nodeJson.put("type", guest instanceof Vm ? "vm" : "container");
+
+            String name = guest instanceof Vm ? "vm-" + guest.getId()
+                    : guest instanceof Container ? "container-" + guest.getId()
+                    : "guest-" + guest.getId();
+            nodeJson.put("name", name);
+
+            nodeJsons.add(nodeJson);
+        }
+
+        if (nodeJsons.isEmpty()) return;
+
+        try {
+            String payload = mapper.writeValueAsString(nodeJsons);
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(CONTROL_PLANE_URL + "/nodes"))
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(payload))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() == 200) {
+                Log.println(CloudSim.clock() + ": Synced active nodes: " + payload);
+            } else {
+                Log.println(CloudSim.clock() + ": Failed to sync nodes: " + response.body());
+            }
+        } catch (IOException | InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+
 
     private void sendNodesToControlPlane() {
         List<ObjectNode> nodeJsons = new ArrayList<>();
@@ -153,6 +189,12 @@ public class Live_Kubernetes_Broker extends DatacenterBroker {
             nodeJson.put("id", guest.getId());
             nodeJson.put("mipsAvailable", (int) guest.getMips());
             nodeJson.put("ramAvailable", guest.getRam());
+
+            nodeJson.put("pes", guest.getNumberOfPes());
+            nodeJson.put("bw", guest.getBw());
+            nodeJson.put("size", guest.getSize());
+            nodeJson.put("type", guest instanceof Vm ? "vm" : "container");
+
 
             if (guest instanceof Vm) {
                 nodeJson.put("name", "vm-" + guest.getId());
@@ -204,8 +246,13 @@ public class Live_Kubernetes_Broker extends DatacenterBroker {
             ObjectNode podJson = mapper.createObjectNode();
             podJson.put("id", cloudlet.getCloudletId());
             podJson.put("name", "cloudlet-" + cloudlet.getCloudletId());
-            podJson.put("mipsRequested", (int) (cloudlet.getCloudletLength() / cloudlet.getNumberOfPes()));
-            podJson.put("ramRequested", 256);
+            podJson.put("length", cloudlet.getCloudletLength());
+            podJson.put("pes", cloudlet.getNumberOfPes());
+            podJson.put("fileSize", cloudlet.getCloudletFileSize());
+            podJson.put("outputSize", cloudlet.getCloudletOutputSize());
+            podJson.put("utilizationCpu", cloudlet.getUtilizationModelCpu().getUtilization(0)); // or estimate max
+            podJson.put("utilizationRam", cloudlet.getUtilizationModelRam().getUtilization(0));
+            podJson.put("utilizationBw", cloudlet.getUtilizationModelBw().getUtilization(0));
 
             podJsonList.add(podJson);
             pendingCloudletsForScheduling.put(cloudlet.getCloudletId(), cloudlet);
@@ -244,6 +291,7 @@ public class Live_Kubernetes_Broker extends DatacenterBroker {
                                 cloudlet.setCloudletStatus(Cloudlet.CloudletStatus.FAILED);
                                 getCloudletReceivedList().add(cloudlet);
                             }
+                            submitCloudletToVmInCloudSim(cloudlet, nodeID);
                         }
                         case "Unschedulable" -> {
                             Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Pod ", cloudletId, " is unschedulable.");
@@ -271,6 +319,26 @@ public class Live_Kubernetes_Broker extends DatacenterBroker {
         submitCloudlets();
     }
 
+    private void deleteCloudletInControlPlane(int cloudletId) {
+        String podName = "cspod-" + cloudletId;
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(CONTROL_PLANE_URL + "/pod/" + podName))
+                .DELETE()
+                .build();
+
+        try {
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() == 200) {
+                Log.println("Deleted pod " + podName + " from control plane.");
+            } else {
+                Log.println("Failed to delete pod " + podName + ", status: " + response.statusCode());
+            }
+        } catch (IOException | InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+
 
     private void submitCloudletToVmInCloudSim(Cloudlet cloudlet, int vmId) {
         GuestEntity targetVm = VmList.getById(getGuestsCreatedList(), vmId);
@@ -283,5 +351,26 @@ public class Live_Kubernetes_Broker extends DatacenterBroker {
         }
 
         cloudlet.setGuestId(targetVm.getId());
+    }
+
+
+    public void sendResetRequestToControlPlane() {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(CONTROL_PLANE_URL + "/reset"))
+                .DELETE()
+                .build();
+
+        try {
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() == 200) {
+                Log.println("Sent reset request to Control Plane.");
+            } else {
+                Log.println("Failed to reset Control Plane. Status: " + response.statusCode()
+                        + ", Body: " + response.body());
+            }
+        } catch (IOException | InterruptedException e) {
+            Log.println("Error sending reset request to Control Plane: " + e.getMessage());
+            Thread.currentThread().interrupt();
+        }
     }
 }
