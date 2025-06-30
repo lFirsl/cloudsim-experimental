@@ -16,7 +16,6 @@ import (
 type Communicator struct {
 	extenderURL string
 	mu          sync.RWMutex
-	nodes       map[int]CsNode
 	pods        map[int]*CsPod
 	kubeClient  *kube_client.KubeClient // <--- ADD THIS
 }
@@ -24,7 +23,6 @@ type Communicator struct {
 func NewCommunicator(url string, kc *kube_client.KubeClient) *Communicator {
 	return &Communicator{
 		extenderURL: url,
-		nodes:       make(map[int]CsNode),
 		pods:        make(map[int]*CsPod),
 		kubeClient:  kc,
 	}
@@ -43,65 +41,58 @@ func (c *Communicator) HandleNodes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	// Step 1: Get current nodes from K8s cluster
+	k8sNodes, err := c.kubeClient.GetNodes()
+	if err != nil {
+		http.Error(w, "Error fetching current cluster nodes: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
 
-	// Step 1: Build sets of incoming and current node IDs
+	currentMap := make(map[int]*corev1.Node)
+	for _, kNode := range k8sNodes {
+		if id, err := extractNodeID(kNode.Name); err == nil {
+			currentMap[id] = kNode
+		}
+	}
+
+	// Step 2: Build incoming map
 	incomingMap := map[int]CsNode{}
 	for _, node := range incomingNodes {
 		incomingMap[node.ID] = node
 	}
 
-	existingMap := c.nodes
-	toAddOrUpdate := []CsNode{}
-	toDelete := []int{}
-
-	// Step 2: Detect adds/updates
-	for id, incoming := range incomingMap {
-		current, exists := existingMap[id]
-		if !exists || !nodesEqual(current, incoming) {
-			toAddOrUpdate = append(toAddOrUpdate, incoming)
+	// Step 3: Determine deletions
+	var toDelete []*corev1.Node
+	for id, node := range currentMap {
+		if _, exists := incomingMap[id]; !exists {
+			toDelete = append(toDelete, node)
 		}
 	}
 
-	// Step 3: Detect removals
-	for id := range existingMap {
-		if _, stillPresent := incomingMap[id]; !stillPresent {
-			toDelete = append(toDelete, id)
+	// Step 4: Determine additions/updates
+	var toAddOrUpdate []CsNode
+	for id, newNode := range incomingMap {
+		existingNode, exists := currentMap[id]
+		if !exists || !nodesEqual(ConvertToCsNode(existingNode), newNode) {
+			toAddOrUpdate = append(toAddOrUpdate, newNode)
 		}
 	}
 
-	// Step 4: Apply deletions
-	var k8sNodesToDelete []*corev1.Node
+	// Step 5: Delete
 	if len(toDelete) > 0 {
-		allK8sNodes, err := c.kubeClient.GetNodes()
-		if err != nil {
-			http.Error(w, "Error retrieving current Kubernetes nodes: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
-		for _, node := range allK8sNodes {
-			if id, err := extractNodeID(node.Name); err == nil {
-				if contains(toDelete, id) {
-					k8sNodesToDelete = append(k8sNodesToDelete, node)
-				}
-			}
-		}
-		if err := c.kubeClient.DeleteNodes(k8sNodesToDelete); err != nil {
-			http.Error(w, "Failed to delete old nodes: "+err.Error(), http.StatusInternalServerError)
+		if err := c.kubeClient.DeleteNodes(toDelete); err != nil {
+			http.Error(w, "Failed to delete outdated nodes: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 	}
 
-	// Step 5: Apply adds/updates
+	// Step 6: Add or update
 	if len(toAddOrUpdate) > 0 {
 		if err := c.SendFakeNodesFromCs(toAddOrUpdate); err != nil {
-			http.Error(w, "Failed to send new/updated nodes to Kubernetes: "+err.Error(), http.StatusInternalServerError)
+			http.Error(w, "Failed to send updated nodes: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 	}
-
-	// Step 6: Update internal map
-	c.nodes = incomingMap
 
 	// Step 7: Wait for readiness
 	const maxAttempts = 20
@@ -114,7 +105,7 @@ func (c *Communicator) HandleNodes(w http.ResponseWriter, r *http.Request) {
 		}
 		if ok {
 			w.WriteHeader(http.StatusOK)
-			fmt.Fprintf(w, "Successfully synced %d nodes (added/updated: %d, deleted: %d)\n", len(incomingMap), len(toAddOrUpdate), len(toDelete))
+			fmt.Fprintf(w, "Synced %d nodes (added/updated: %d, deleted: %d)\n", len(incomingMap), len(toAddOrUpdate), len(toDelete))
 			return
 		}
 		time.Sleep(delay)
@@ -230,14 +221,4 @@ func (c *Communicator) HandleBatchPods(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to encode response: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
-}
-
-func (c *Communicator) getNodesSnapshot() []CsNode {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	nodes := make([]CsNode, 0, len(c.nodes))
-	for _, n := range c.nodes {
-		nodes = append(nodes, n)
-	}
-	return nodes
 }

@@ -7,6 +7,7 @@
  * Copyright (c) 2009, The University of Melbourne, Australia
  */
 
+
 package org.example;
 
 import java.text.DecimalFormat;
@@ -29,6 +30,7 @@ import org.cloudbus.cloudsim.UtilizationModelFull;
 import org.cloudbus.cloudsim.Vm;
 import org.cloudbus.cloudsim.VmAllocationPolicySimple;
 import org.cloudbus.cloudsim.VmSchedulerTimeShared;
+import org.cloudbus.cloudsim.core.CloudActionTags;
 import org.cloudbus.cloudsim.core.CloudSim;
 import org.cloudbus.cloudsim.provisioners.BwProvisionerSimple;
 import org.cloudbus.cloudsim.provisioners.PeProvisionerSimple;
@@ -41,7 +43,7 @@ import org.cloudbus.cloudsim.provisioners.RamProvisionerSimple;
  */
 public class Pause_Example {
 	public static Live_Kubernetes_Broker broker;
-	public static DatacenterBroker broker1;
+	public static Live_Kubernetes_Broker broker1;
 
 	/** The cloudlet list. */
 	private static List<Cloudlet> cloudletList;
@@ -116,17 +118,17 @@ public class Pause_Example {
 			CloudSim.init(num_user, calendar, trace_flag);
 
 			// Second step: Create Datacenters
-			Datacenter dc = createDatacenter("dc1");
 			//Datacenters are the resource providers in CloudSim. We need at list one of them to run a CloudSim simulation
+			Datacenter datacenter0 = createDatacenter("Datacenter_0");
+			Datacenter datacenter1 = createDatacenter("Datacenter_1");
 
 			//Third step: Create Broker
 			broker = new Live_Kubernetes_Broker("Broker_0");
-
 			int brokerId = broker.getId();
 
 			//Fourth step: Create VMs and Cloudlets and send them to broker
 			vmlist = createVM(brokerId, 5, 0); //creating 5 vms
-			cloudletList = createCloudlet(brokerId, 10, 0); // creating 10 cloudlets
+			cloudletList = createCloudlet(brokerId, 20, 0); // creating 10 cloudlets
 
 			broker.submitGuestList(vmlist);
 			broker.submitCloudletList(cloudletList);
@@ -145,23 +147,30 @@ public class Pause_Example {
 					}
 				}
 
-				Log.println("\n\n\n" + CloudSim.clock() + ": The simulation is paused for 5 sec \n\n");
+				Log.println("\n\n\n" + CloudSim.clock() + ": The simulation is paused.\n\n");
 
 				try {
-					Thread.sleep(5000);
+					Thread.sleep(100);
 				} catch (InterruptedException e) {
 					e.printStackTrace();
 				}
 
-                int brokerId1 = broker.getId();
+				try {
+					broker1 = new Live_Kubernetes_Broker("Broker_1");
+				} catch (Exception e) {
+					throw new RuntimeException(e);
+				}
+
+				int brokerId1 = broker1.getId();
 
 				//Create VMs and Cloudlets and send them to broker
 				vmlist = createVM(brokerId1, 5, 100); //creating 5 vms
-				cloudletList = createCloudlet(brokerId1, 20, 100); // creating 10 cloudlets
+				cloudletList = createCloudlet(brokerId1, 15, 100); // creating 10 cloudlets
 
-				broker.submitGuestList(vmlist);
-				broker.submitCloudletList(cloudletList);
+				broker1.submitGuestList(vmlist);
+				broker1.submitCloudletList(cloudletList);
 
+				Log.println("And now it's resumed!");
 				CloudSim.resumeSimulation();
 			};
 
@@ -172,15 +181,16 @@ public class Pause_Example {
 			CloudSim.startSimulation();
 
 			// Final step: Print results when simulation is over
-			List<Cloudlet> newList = broker.getCloudletReceivedList();
+			List<Cloudlet> newList1 = broker.getCloudletReceivedList();
+			List<Cloudlet> newList2 = broker1.getCloudletReceivedList();
 
 			CloudSim.stopSimulation();
 
-			printCloudletList(newList);
+			printCloudletList(newList1);
+			printCloudletList(newList2);
 
 			Log.println("CloudSimExample7 finished!");
 			broker.sendResetRequestToControlPlane();
-
 		}
 		catch (Exception e)
 		{
@@ -223,28 +233,28 @@ public class Pause_Example {
 		int bw = 10000;
 
 		hostList.add(
-    			new Host(
-    				hostId,
-    				new RamProvisionerSimple(ram),
-    				new BwProvisionerSimple(bw),
-    				storage,
-    				peList1,
-    				new VmSchedulerTimeShared(peList1)
-    			)
-    		); // This is our first machine
+				new Host(
+						hostId,
+						new RamProvisionerSimple(ram),
+						new BwProvisionerSimple(bw),
+						storage,
+						peList1,
+						new VmSchedulerTimeShared(peList1)
+				)
+		); // This is our first machine
 
 		hostId++;
 
 		hostList.add(
-    			new Host(
-    				hostId,
-    				new RamProvisionerSimple(ram),
-    				new BwProvisionerSimple(bw),
-    				storage,
-    				peList2,
-    				new VmSchedulerTimeShared(peList2)
-    			)
-    		); // Second machine
+				new Host(
+						hostId,
+						new RamProvisionerSimple(ram),
+						new BwProvisionerSimple(bw),
+						storage,
+						peList2,
+						new VmSchedulerTimeShared(peList2)
+				)
+		); // Second machine
 
 		// 5. Create a DatacenterCharacteristics object that stores the
 		//    properties of a data center: architecture, OS, list of
@@ -261,7 +271,7 @@ public class Pause_Example {
 		LinkedList<Storage> storageList = new LinkedList<>();	//we are not adding SAN devices by now
 
 		DatacenterCharacteristics characteristics = new DatacenterCharacteristics(
-                arch, os, vmm, hostList, time_zone, cost, costPerMem, costPerStorage, costPerBw);
+				arch, os, vmm, hostList, time_zone, cost, costPerMem, costPerStorage, costPerBw);
 
 
 		// 6. Finally, we need to create a PowerDatacenter object.
@@ -290,18 +300,18 @@ public class Pause_Example {
 				"Data center ID" + indent + "VM ID" + indent + indent + "Time" + indent + "Start Time" + indent + "Finish Time");
 
 		DecimalFormat dft = new DecimalFormat("###.##");
-        for (Cloudlet value : list) {
-            cloudlet = value;
-            Log.print(indent + cloudlet.getCloudletId() + indent + indent);
+		for (Cloudlet value : list) {
+			cloudlet = value;
+			Log.print(indent + cloudlet.getCloudletId() + indent + indent);
 
-            if (cloudlet.getStatus() == Cloudlet.CloudletStatus.SUCCESS) {
-                Log.print("SUCCESS");
+			if (cloudlet.getStatus() == Cloudlet.CloudletStatus.SUCCESS) {
+				Log.print("SUCCESS");
 
-                Log.println(indent + indent + cloudlet.getResourceId() + indent + indent + indent + cloudlet.getGuestId() +
-                        indent + indent + indent + dft.format(cloudlet.getActualCPUTime()) +
-                        indent + indent + dft.format(cloudlet.getExecStartTime()) + indent + indent + indent + dft.format(cloudlet.getExecFinishTime()));
-            }
-        }
+				Log.println(indent + indent + cloudlet.getResourceId() + indent + indent + indent + cloudlet.getGuestId() +
+						indent + indent + indent + dft.format(cloudlet.getActualCPUTime()) +
+						indent + indent + dft.format(cloudlet.getExecStartTime()) + indent + indent + indent + dft.format(cloudlet.getExecFinishTime()));
+			}
+		}
 
 	}
 }
