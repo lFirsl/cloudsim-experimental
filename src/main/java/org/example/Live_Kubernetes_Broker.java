@@ -179,62 +179,6 @@ public class Live_Kubernetes_Broker extends DatacenterBroker {
         }
     }
 
-
-    private void sendNodesToControlPlane() {
-        List<ObjectNode> nodeJsons = new ArrayList<>();
-        com.fasterxml.jackson.databind.ObjectMapper mapper = new ObjectMapper();
-
-        for (GuestEntity guest : getGuestsCreatedList()) {
-            ObjectNode nodeJson = mapper.createObjectNode();
-            nodeJson.put("id", guest.getId());
-            nodeJson.put("mipsAvailable", (int) guest.getMips());
-            nodeJson.put("ramAvailable", guest.getRam());
-
-            nodeJson.put("pes", guest.getNumberOfPes());
-            nodeJson.put("bw", guest.getBw());
-            nodeJson.put("size", guest.getSize());
-            nodeJson.put("type", guest instanceof Vm ? "vm" : "container");
-
-
-            if (guest instanceof Vm) {
-                nodeJson.put("name", "vm-" + guest.getId());
-            } else if (guest instanceof Container) {
-                nodeJson.put("name", "container-" + guest.getId());
-            } else {
-                nodeJson.put("name", "guest-" + guest.getId());
-            }
-            nodeJsons.add(nodeJson);
-        }
-
-        String jsonPayload;
-        try {
-            jsonPayload = mapper.writeValueAsString(nodeJsons);
-        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
-            Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Error marshalling nodes to JSON: ", e.getMessage());
-            return;
-        }
-
-        Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Sending ALL Nodes to Control Plane: ", jsonPayload);
-
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(CONTROL_PLANE_URL + "/nodes"))
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
-                .build();
-
-        try {
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() == 200) {
-                Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": All Nodes sent successfully to Control Plane.");
-            } else {
-                Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Failed to send ALL Nodes, status: ", response.statusCode(), " Body: ", response.body());
-            }
-        } catch (IOException | InterruptedException e) {
-            Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Error sending ALL Nodes: ", e.getMessage());
-            Thread.currentThread().interrupt();
-        }
-    }
-
     protected void submitCloudletsToControlPlane() {
         Log.println("Submitting all cloudlets to Control Plane in a single batch...");
 
