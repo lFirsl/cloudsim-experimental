@@ -175,6 +175,7 @@ public class Custom_Broker_Example {
             printCloudletList(newList);
 
             Log.printLine("CloudSimExample1 finished!");
+            broker.sendResetRequestToControlPlane();
 
         }
         catch(Exception e){

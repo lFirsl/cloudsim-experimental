@@ -177,11 +177,13 @@ public class ExperimentalExample {
 
             CloudSim.stopSimulation();
 
+
             // Print results when simulation is over
             List<Cloudlet> newList = broker.getCloudletReceivedList();
             printCloudletList(newList);
 
             Log.println("CloudSimExample1 finished!");
+            broker.sendResetRequestToControlPlane();
 
         }
         catch(Exception e){

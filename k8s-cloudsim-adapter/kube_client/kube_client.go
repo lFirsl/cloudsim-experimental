@@ -302,11 +302,11 @@ func (kc *KubeClient) SendNode(node *corev1.Node) error {
 }
 
 func (kc *KubeClient) ResetCluster() error {
-	err := kc.DeleteAllNodes()
+	err := kc.DeleteAllPods()
 	if err != nil {
 		return err
 	}
-	err = kc.DeleteAllPods()
+	err = kc.DeleteAllNodes()
 	if err != nil {
 		return err
 	}
