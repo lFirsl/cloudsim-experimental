@@ -1,4 +1,4 @@
-package org.example;
+package org.example.examples;
 
 import org.cloudbus.cloudsim.*;
 import org.cloudbus.cloudsim.container.core.Container;
@@ -9,13 +9,19 @@ import org.cloudbus.cloudsim.core.VirtualEntity;
 import org.cloudbus.cloudsim.provisioners.BwProvisionerSimple;
 import org.cloudbus.cloudsim.provisioners.PeProvisionerSimple;
 import org.cloudbus.cloudsim.provisioners.RamProvisionerSimple;
-import org.cloudbus.cloudsim.VmSchedulerTimeShared; // Using TimeShared for VMs
-import org.cloudbus.cloudsim.CloudletSchedulerTimeShared; // Using TimeShared for Cloudlets
 
 import java.text.DecimalFormat;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.LinkedList;
+import java.util.List;
 
-public class Custom_Broker_Example {
+
+// This is the same as Custom_Broker_Example
+// However, here we use the built-in scheduler for testing purposes
+// E.g. Are we getting similar discrete times in the Custom Broker as we should using the default scheduler?
+
+public class Default_Broker_Example {
 
     /** The host list. */
     private static List<HostEntity> hostList; // Initialize in main
@@ -45,7 +51,7 @@ public class Custom_Broker_Example {
             CloudSim.init(1,Calendar.getInstance(),false);
 
             //Get a broker
-            Live_Kubernetes_Broker broker = createBroker();
+            DatacenterBroker broker = createBroker();
 
             hostList = new ArrayList<>(); // Initialize hostList here
             int hostID = 0;
@@ -175,7 +181,6 @@ public class Custom_Broker_Example {
             printCloudletList(newList);
 
             Log.printLine("CloudSimExample1 finished!");
-            broker.sendResetRequestToControlPlane();
 
         }
         catch(Exception e){
@@ -209,10 +214,10 @@ public class Custom_Broker_Example {
         return datacenter;
     }
 
-    private static Live_Kubernetes_Broker createBroker() {
-        Live_Kubernetes_Broker broker = null;
+    private static DatacenterBroker createBroker() {
+        DatacenterBroker broker = null;
         try {
-            broker = new Live_Kubernetes_Broker("Broker");
+            broker = new DatacenterBroker("Broker");
         } catch (Exception e) {
             e.printStackTrace();
             return null;

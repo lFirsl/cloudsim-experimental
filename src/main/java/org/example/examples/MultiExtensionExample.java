@@ -1,4 +1,4 @@
-package org.example;
+package org.example.examples;
 
 /*
  * Title:        CloudSim Toolkit
@@ -28,8 +28,7 @@ import java.util.List;
 /**
  * A simple example showing the use of containers (ContainerCloudSim) and Vms (base CloudSim) in the same contexts.
  */
-public class ExperimentalExample {
-
+public class MultiExtensionExample {
     /** The host list. */
     private static List<HostEntity> hostList = new ArrayList<>();
 
@@ -42,38 +41,45 @@ public class ExperimentalExample {
     /** the containerlist */
     private static List<GuestEntity> containerlist;
 
+    /**
+     * Creates main() to run this example.
+     *
+     * @param args the args
+     */
     public static void main(String[] args) {
-        try{
-            int num_users = 1;
-            Calendar calendar = Calendar.getInstance();
+        Log.println("Starting CloudSimMultiExtensionExample1...");
 
-            // Initiate CloudSim, first starting step
-            CloudSim.init(num_users,calendar,false);
+        try {
+            // Initialize the CloudSim package. It should be called before creating any entities.
+            int num_user = 1; // number of cloud users
+            Calendar calendar = Calendar.getInstance(); // Calendar whose fields have been initialized with the current date and time.
+            boolean trace_flag = false; // trace events
 
-            // Then, create the broker - the thing that manages what gets assigned where
-            Live_Kubernetes_Broker broker = createBroker();
+            CloudSim.init(num_user, calendar, trace_flag);
+
+            // Create Broker
+            DatacenterBroker broker = createBroker();
             int brokerId = broker.getId();
 
-            // Create host - this is the "actual" PC. We define the specs how we want. Handy!
-            int mips = 1000; // Millions of Onstructions per second, was it?
-            int ram = 8192; // Really, what PC has less than 8GB of RAM these days?
+            // Create host
+            int mips = 1000;
+            int ram = 2048; // host memory (MB)
             long storage = 1000000; // host storage
             int bw = 10000;
 
-            // PE stands for Processing Element - it is an abstraction of a CPU core. A CPU is made of a bundle of PEs
             List<Pe> peList = new ArrayList<>();
-            for (int i = 0; i < 4; i++) {
-                peList.add(new Pe(i, new PeProvisionerSimple(mips)));
-            }
+            peList.add(new Pe(0, new PeProvisionerSimple(mips)));
+            peList.add(new Pe(0, new PeProvisionerSimple(mips)));
+            peList.add(new Pe(0, new PeProvisionerSimple(mips)));
+            peList.add(new Pe(0, new PeProvisionerSimple(mips)));
 
-            //Here, we're adding hosts
             hostList.add(
                     new Host(0, new RamProvisionerSimple(ram), new BwProvisionerSimple(bw), storage, peList, new VmSchedulerSpaceShared(peList))
             );
 
-            vmlist = new ArrayList<>(); // Prepare vmlist
+            // Create Vms
+            vmlist = new ArrayList<>();
 
-            // VM requirements for what will be hosting containers on the host
             mips = 1000;
             long size = 10000; // image size (MB)
             ram = 512; // vm memory (MB)
@@ -81,11 +87,14 @@ public class ExperimentalExample {
             int pesNumber = 2; // number of cpus
             String vmm = "Xen"; // VMM name
 
-            // Like before, we make a list of cpu cores we want to use
+            // create Vm (not eligible for containers)
+            //VirtualEntity vm0 = new Vm(0, brokerId, mips/2, pesNumber, ram, bw, size, vmm, new CloudletSchedulerTimeShared());
+            //vmlist.add(vm0);
+
+            // create Vm (eligible for containers)
             peList = new ArrayList<>();
             peList.add(new Pe(0, new PeProvisionerSimple(mips/4)));
             peList.add(new Pe(1, new PeProvisionerSimple(mips/4)));
-            //Then we make a VM using said cpu cores.
             VirtualEntity vm1 = new Vm(1, brokerId, (double) mips/2, pesNumber, ram, bw, size, vmm, new CloudletSchedulerTimeShared(),
                     new VmSchedulerTimeShared(peList),
                     new RamProvisionerSimple(ram),
@@ -94,7 +103,6 @@ public class ExperimentalExample {
             vmlist.add(vm1);
             hostList.add(vm1);
 
-            //And again
             peList = new ArrayList<>();
             peList.add(new Pe(0, new PeProvisionerSimple(mips/4)));
             peList.add(new Pe(1, new PeProvisionerSimple(mips/4)));
@@ -106,8 +114,7 @@ public class ExperimentalExample {
             vmlist.add(vm3);
             hostList.add(vm3);
 
-
-            // We then make the containers we want to simulate
+            // Create container
             containerlist = new ArrayList<>();
             GuestEntity container = new Container(3, brokerId, 100, pesNumber, ram/2, bw/2, size/2, "Docker",
                     new CloudletSchedulerTimeShared());
@@ -124,19 +131,14 @@ public class ExperimentalExample {
             broker.submitGuestList(vmlist);
             broker.submitGuestList(containerlist);
 
-
-            // Create Cloudlets - that is, the actual tasks these VMs and Containers need to finish up.
+            // Create Cloudlets
             cloudletList = new ArrayList<>();
 
             long length = 400000;
             long fileSize = 300;
             long outputSize = 300;
-
-            // Determine how resources are used by cloudlets - in this case, everything is used up to 100%
             UtilizationModel utilizationModel = new UtilizationModelFull();
 
-
-            // Creating the actual cloudlets - some duplication here, but this is an example. That's fine.
             Cloudlet cloudlet = new Cloudlet(0, length, pesNumber, fileSize,
                     outputSize, utilizationModel, utilizationModel,
                     utilizationModel);
@@ -166,9 +168,6 @@ public class ExperimentalExample {
             cloudletList.add(cloudlet);
 
 
-            // Now we have everything! Just need to start the whole thing
-
-
             // submit cloudlet list to the broker
             broker.submitCloudletList(cloudletList);
 
@@ -177,22 +176,24 @@ public class ExperimentalExample {
 
             CloudSim.stopSimulation();
 
-
             // Print results when simulation is over
             List<Cloudlet> newList = broker.getCloudletReceivedList();
             printCloudletList(newList);
 
             Log.println("CloudSimExample1 finished!");
-            broker.sendResetRequestToControlPlane();
-
-        }
-        catch(Exception e){
+        } catch (Exception e) {
             e.printStackTrace();
+            Log.println("Unwanted errors happen");
         }
-
     }
 
-
+    /**
+     * Creates the datacenter.
+     *
+     * @param name the name
+     *
+     * @return the datacenter
+     */
     private static Datacenter createDatacenter(String name) {
         // Create datacenter
         String arch = "x86"; // system architecture
@@ -229,10 +230,10 @@ public class ExperimentalExample {
      *
      * @return the datacenter broker
      */
-    private static Live_Kubernetes_Broker createBroker() {
-        Live_Kubernetes_Broker broker = null;
+    private static DatacenterBroker createBroker() {
+        DatacenterBroker broker = null;
         try {
-            broker = new Live_Kubernetes_Broker("Broker");
+            broker = new DatacenterBroker("Broker");
         } catch (Exception e) {
             e.printStackTrace();
             return null;
@@ -240,6 +241,11 @@ public class ExperimentalExample {
         return broker;
     }
 
+    /**
+     * Prints the Cloudlet objects.
+     *
+     * @param list list of Cloudlets
+     */
     private static void printCloudletList(List<Cloudlet> list) {
         int size = list.size();
         Cloudlet cloudlet;
