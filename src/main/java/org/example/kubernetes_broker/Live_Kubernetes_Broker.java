@@ -113,7 +113,7 @@ public class Live_Kubernetes_Broker extends DatacenterBroker {
         if (getVmsRequested() == getVmsAcks()) {
             sendAllActiveNodesToControlPlane();
             if (getGuestsCreatedList().size() == getGuestList().size()) {
-                submitCloudletsToControlPlane();
+                submitCloudlets();
             } else {
                 boolean triedAllDatacenters = true;
                 for (int nextDatacenterId : getDatacenterIdsList()) {
@@ -126,7 +126,7 @@ public class Live_Kubernetes_Broker extends DatacenterBroker {
 
                 if (triedAllDatacenters) {
                     if (!getGuestsCreatedList().isEmpty()) {
-                        submitCloudletsToControlPlane();
+                        submitCloudlets();
                     } else {
                         Log.printlnConcat(CloudSim.clock(), ": ", getName(),
                                 ": none of the required VMs/Containers could be created. CloudSim will terminate naturally when no more events remain.");
@@ -179,7 +179,9 @@ public class Live_Kubernetes_Broker extends DatacenterBroker {
         }
     }
 
-    protected void submitCloudletsToControlPlane() {
+
+    @Override
+    protected void submitCloudlets() {
         Log.println("Submitting all cloudlets to Control Plane in a single batch...");
 
         List<Cloudlet> cloudletList = getCloudletList();
@@ -260,7 +262,7 @@ public class Live_Kubernetes_Broker extends DatacenterBroker {
         }
 
         Log.printlnConcat("Finished scheduling batch. Submitting to CloudSim.");
-        submitCloudlets();
+        super.submitCloudlets();
     }
 
     private void deleteCloudletInControlPlane(int cloudletId) {
