@@ -108,7 +108,7 @@ public class Pause_Example_Single_Broker_Custom {
 			Datacenter datacenter0 = createDatacenter("Datacenter_0");
 
 			//Third step: Create Broker
-			broker = new Live_Kubernetes_Broker_Ex("Broker_0");
+			broker = new Live_Kubernetes_Broker_Ex("Broker_0",2000);
 			int brokerId = broker.getId();
 
 			//Fourth step: Create VMs and Cloudlets and send them to broker
@@ -134,6 +134,7 @@ public class Pause_Example_Single_Broker_Custom {
 
 			// Final step: Print results when simulation is over
 			List<Cloudlet> newList1 = broker.getCloudletReceivedList();
+			Log.printConcat("Broker has a lifetime of: ",broker.getLifeLength());
 
 			CloudSim.stopSimulation();
 
