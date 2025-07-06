@@ -12,7 +12,7 @@ import (
 
 // CreateFakePod creates a KWOK-compatible fake pod with predefined spec
 func (c *Communicator) SendFakePodFromCs(csPod CsPod) error {
-	//cpuStr := fmt.Sprintf("%d", csPod.Pes)
+	cpuStr := fmt.Sprintf("%d", csPod.Pes)
 
 	// RAM: use fileSize or utilizationRam as an estimate (very context dependent)
 	// Temporary hard-coding.
@@ -60,16 +60,14 @@ func (c *Communicator) SendFakePodFromCs(csPod CsPod) error {
 				{
 					Name:  "fake-container",
 					Image: "fake-image",
-					//Resources: corev1.ResourceRequirements{
-					//	Requests: corev1.ResourceList{
-					//		corev1.ResourceCPU:    resource.MustParse(cpuStr), // assume MIPS = millicores
-					//		corev1.ResourceMemory: resource.MustParse(ramMiB),
-					//	},
-					//	Limits: corev1.ResourceList{
-					//		corev1.ResourceCPU:    resource.MustParse(cpuStr),
-					//		corev1.ResourceMemory: resource.MustParse(ramMiB),
-					//	},
-					//},
+					Resources: corev1.ResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceCPU: resource.MustParse(cpuStr),
+						},
+						Limits: corev1.ResourceList{
+							corev1.ResourceCPU: resource.MustParse(cpuStr),
+						},
+					},
 				},
 			},
 		},

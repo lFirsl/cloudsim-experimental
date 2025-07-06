@@ -27,9 +27,7 @@ public class Live_Kubernetes_Broker_Ex extends DatacenterBrokerEX {
 
     //Map of
     private final Map<Integer, Cloudlet> pendingCloudlets = new HashMap<>();
-
     private final Map<Integer, Cloudlet> pendingCloudletsForScheduling;
-    // Removed simulationTerminationInitiated flag as it's no longer needed for explicit termination calls.
 
     public Live_Kubernetes_Broker_Ex(String name) throws Exception {
         super(name, -1.0F);
@@ -246,8 +244,10 @@ public class Live_Kubernetes_Broker_Ex extends DatacenterBrokerEX {
                 }
                 case "Unschedulable", "Unknown" -> {
                     Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Pod ", cloudletId, " is unschedulable or unknown.");
-                    cloudlet.setCloudletStatus(Cloudlet.CloudletStatus.FAILED);
-                    getCloudletReceivedList().add(cloudlet);
+                    getCloudletList().remove(cloudlet);
+                    pendingCloudlets.put(cloudletId, cloudlet);
+                    //cloudlet.setCloudletStatus(Cloudlet.CloudletStatus.FAILED);
+                    //getCloudletReceivedList().add(cloudlet);
                 }
             }
 
@@ -282,7 +282,9 @@ public class Live_Kubernetes_Broker_Ex extends DatacenterBrokerEX {
             Log.println("No new cloudlets to submit.");
         }
         else {
-            Log.println("New cloudlets to submit. Proceeding...");
+            Cloudlet newcloudlet = pendingCloudlets.get(newCloudlets.get(0).get("id").asInt());
+            getCloudletList().add(newcloudlet);
+            Log.printlnConcat("New cloudlet to submit: ", newcloudlet.getCloudletId(), ". Proceeding...");
             processScheduledPodsResponse(newCloudlets);
         }
 
