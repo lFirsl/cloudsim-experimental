@@ -166,9 +166,6 @@ public class Live_Kubernetes_Broker_Ex extends DatacenterBrokerEX {
 
         // 3. Process scheduling result
         processScheduledPodsResponse(scheduledPods);
-
-        Log.println("Finished scheduling batch. Submitting to CloudSim.");
-        super.submitCloudlets();  // If still needed
     }
 
     private String serializeCloudletsForSubmission(List<Cloudlet> cloudletList) {
@@ -196,6 +193,10 @@ public class Live_Kubernetes_Broker_Ex extends DatacenterBrokerEX {
             Log.printlnConcat(getName(), ": Error serializing cloudlets: ", e.getMessage());
             return null;
         }
+    }
+
+    private String serializeSingleCloudletForSubmission(Cloudlet cloudlet) {
+        return serializeCloudletsForSubmission(List.of(cloudlet));
     }
 
     private ArrayNode submitCloudletBatchToMiddleware(String requestBody) {
@@ -252,45 +253,74 @@ public class Live_Kubernetes_Broker_Ex extends DatacenterBrokerEX {
 
             pendingCloudletsForScheduling.remove(cloudletId);
         }
+
+        Log.println("Finished scheduling batch. Submitting to CloudSim.");
+        super.submitCloudlets();  // If still needed
     }
 
     @Override
     protected void processCloudletReturn(SimEvent ev) {
         Cloudlet cloudlet = (Cloudlet) ev.getData();
+
+        updateMiddleware(cloudlet);
+
         if (getLifeLength() <= 0) {
             // Will kill the broker if there are no more cloudlets.
             super.processCloudletReturn(ev);
         } else {
-
             getCloudletReceivedList().add(cloudlet);
             Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": ", cloudlet.getClass().getSimpleName()," #", cloudlet.getCloudletId(), " return received");
             cloudletsSubmitted--;
         }
     }
 
-    protected void submitCloudlet(){
+    private void updateMiddleware(Cloudlet cloudlet) {
+        Log.printlnConcat("Deleting cloudlet ", cloudlet.getCloudletId(), " from the control panel.");
+        String jsonPayload = serializeSingleCloudletForSubmission(cloudlet);
+        ArrayNode newCloudlets = deleteCloudletAndWait(jsonPayload);
+        if (newCloudlets == null || newCloudlets.isEmpty()) {
+            Log.println("No new cloudlets to submit.");
+        }
+        else {
+            Log.println("New cloudlets to submit. Proceeding...");
+            processScheduledPodsResponse(newCloudlets);
+        }
 
     }
-
-    private void deleteCloudletInControlPlane(int cloudletId) {
-        String podName = "cspod-" + cloudletId;
-
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(CONTROL_PLANE_URL + "/pod/" + podName))
-                .DELETE()
-                .build();
-
+    public ArrayNode deleteCloudletAndWait(String jsonPayload) {
         try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(CONTROL_PLANE_URL + "/pods/update-state"))
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
+                    .build();
+
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
             if (response.statusCode() == 200) {
-                Log.println("Deleted pod " + podName + " from control plane.");
+                Log.println("Cloudlet deletion and wait successful. Response: " + response.body());
+
+                ObjectMapper mapper = new ObjectMapper();
+                JsonNode rootNode = mapper.readTree(response.body());
+
+                if (rootNode.isArray()) {
+                    return (ArrayNode) rootNode;
+                } else {
+                    Log.println("Expected an array in response, got: " + rootNode);
+                    return null;
+                }
             } else {
-                Log.println("Failed to delete pod " + podName + ", status: " + response.statusCode());
+                Log.println("Failed to delete cloudlet. Status: " + response.statusCode() + " Body: " + response.body());
+                return null;
             }
         } catch (IOException | InterruptedException e) {
-            e.printStackTrace();
+            Log.println("Error during cloudlet deletion request: " + e.getMessage());
+            Thread.currentThread().interrupt();
+            return null;
         }
     }
+
+
 
 
     private void submitCloudletToVmInCloudSim(Cloudlet cloudlet, int vmId) {

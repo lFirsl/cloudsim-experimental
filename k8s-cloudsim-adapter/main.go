@@ -49,6 +49,7 @@ func main() {
 	router.HandleFunc("/nodes", comm.HandleNodes).Methods("POST")
 	router.HandleFunc("/schedule-pods", comm.HandleBatchPods).Methods("POST")
 	router.HandleFunc("/pods/", comm.HandlePodStatus).Methods("POST")
+	router.HandleFunc("/pods/update-state", comm.HandleDeleteCloudletAndWait).Methods("POST")
 
 	router.HandleFunc("/pods/create", kube_client.MakeCreatePodHandler(kc))
 	router.HandleFunc("/pods/delete", kube_client.MakeDeletePodHandler(kc))

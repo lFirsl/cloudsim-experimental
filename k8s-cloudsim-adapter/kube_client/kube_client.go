@@ -45,46 +45,65 @@ func (kc *KubeClient) ResetCluster() error {
 	return nil
 }
 
-func (kc *KubeClient) PodDeleteUpdate(podName, namespace string) ([]*corev1.Pod, error) {
-	// Step 1: Snapshot before delete
-	prevPods, err := kc.GetPods(namespace)
+func (kc *KubeClient) DeletePodAndWaitForRescheduling(cloudletID int) ([]*corev1.Pod, error) {
+	podName := fmt.Sprintf("cspod-%d", cloudletID)
+	log.Printf("Deleting pod %s (cloudlet ID %d) and watching for rescheduling...", podName, cloudletID)
+
+	// Capture pre-deletion pod statuses
+	prevPods, err := kc.GetPods("default")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to fetch pods before deletion: %w", err)
 	}
 
-	// Step 2: Save mapping of pod name → assigned node (empty = unscheduled)
-	prevAssignments := map[string]string{}
-	for _, pod := range prevPods {
-		prevAssignments[pod.Name] = pod.Spec.NodeName
-	}
-
-	// Step 3: Delete pod
+	// Delete pod
 	if err := kc.DeletePod(podName); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to delete pod: %w", err)
 	}
 
-	// Step 4: Wait & detect changes
-	const maxAttempts = 30
-	const delay = time.Second
+	// Check if all pods are already scheduled (no need to wait)
+	allScheduled := true
+	for _, pod := range prevPods {
+		if pod.Spec.NodeName == "" {
+			allScheduled = false
+			break
+		}
+	}
+	if allScheduled {
+		log.Println("All pods were already scheduled before deletion. Skipping wait.")
+		return []*corev1.Pod{}, nil
+	}
+
+	prevStatuses := make(map[string]string)
+	for _, pod := range prevPods {
+		prevStatuses[pod.Name] = string(pod.Status.Phase)
+	}
+
+	// Watch for rescheduling
+	const maxAttempts = 20
+	const delay = time.Second / 4
 
 	for i := 0; i < maxAttempts; i++ {
-		time.Sleep(delay)
-
-		currPods, err := kc.GetPods(namespace)
+		log.Printf("Attempt %d to detect rescheduling...", i)
+		currPods, err := kc.GetPods("default")
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to fetch pods after deletion: %w", err)
 		}
 
-		// Check if any pod changed its assigned node
+		var newlyScheduled []*corev1.Pod
 		for _, pod := range currPods {
-			prevNode := prevAssignments[pod.Name]
-			if pod.Spec.NodeName != prevNode {
-				log.Printf("Pod %s was rescheduled: %q -> %q", pod.Name, prevNode, pod.Spec.NodeName)
-				return currPods, nil
+			prevStatus := prevStatuses[pod.Name]
+			currStatus := string(pod.Status.Phase)
+			if pod.Spec.NodeName != "" && prevStatus != currStatus {
+				newlyScheduled = append(newlyScheduled, pod)
 			}
 		}
+
+		if len(newlyScheduled) > 0 {
+			return newlyScheduled, nil
+		}
+
+		time.Sleep(delay)
 	}
 
-	// No changes detected within time window
-	return nil, fmt.Errorf("no pod rescheduling detected after deletion of %s", podName)
+	return []*corev1.Pod{}, nil // No rescheduling detected within timeout
 }

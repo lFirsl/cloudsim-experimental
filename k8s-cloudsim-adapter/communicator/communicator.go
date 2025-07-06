@@ -222,3 +222,38 @@ func (c *Communicator) HandleBatchPods(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 }
+
+func (c *Communicator) HandleDeleteCloudletAndWait(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Only POST allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Accept array of pods for consistency (even if only one)
+	var csPods []CsPod
+	if err := json.NewDecoder(r.Body).Decode(&csPods); err != nil {
+		http.Error(w, "Invalid JSON payload: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if len(csPods) == 0 {
+		http.Error(w, "No cloudlet provided", http.StatusBadRequest)
+		return
+	}
+
+	// Take first pod
+	csPod := csPods[0]
+
+	newPods, err := c.kubeClient.DeletePodAndWaitForRescheduling(csPod.ID)
+	if err != nil {
+		http.Error(w, "Error during deletion and rescheduling: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	csPodsResult := ConvertToCsPods(newPods)
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(csPodsResult); err != nil {
+		http.Error(w, "Failed to encode response: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
