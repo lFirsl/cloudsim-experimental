@@ -32,7 +32,14 @@ public class Live_Kubernetes_Broker_Ex extends DatacenterBrokerEX {
     // Removed simulationTerminationInitiated flag as it's no longer needed for explicit termination calls.
 
     public Live_Kubernetes_Broker_Ex(String name) throws Exception {
-        super(name);
+        super(name, -1.0F);
+        this.httpClient = HttpClient.newHttpClient();
+        ObjectMapper objectMapper = new ObjectMapper();
+        this.pendingCloudletsForScheduling = new HashMap<>();
+    }
+
+    public Live_Kubernetes_Broker_Ex(String name, double lifeLength) throws Exception {
+        super(name,lifeLength);
         this.httpClient = HttpClient.newHttpClient();
         ObjectMapper objectMapper = new ObjectMapper();
         this.pendingCloudletsForScheduling = new HashMap<>();
@@ -42,29 +49,6 @@ public class Live_Kubernetes_Broker_Ex extends DatacenterBrokerEX {
     public void startEntity() {
         super.startEntity();
         schedule(getId(), 0.0, CloudActionTags.RESOURCE_CHARACTERISTICS_REQUEST);
-    }
-
-    @Override
-    public void processEvent(SimEvent ev) {
-        // No need for a termination check here anymore, as we rely on natural shutdown.
-        // All events will be processed until CloudSim's queue is empty.
-
-        switch (ev.getTag()) {
-            case CloudActionTags.RESOURCE_CHARACTERISTICS_REQUEST -> processResourceCharacteristicsRequest(ev);
-            case CloudActionTags.RESOURCE_CHARACTERISTICS -> processResourceCharacteristics(ev);
-            case CloudActionTags.VM_CREATE_ACK -> processVmCreateAck(ev);
-            case CloudActionTags.CLOUDLET_RETURN -> {
-                processCloudletReturn(ev);
-            }
-            case CloudActionTags.BLANK -> {
-                Log.printlnConcat(CloudSim.clock(), ": Processing blank event to inject time manually.");
-            }
-            case CloudActionTags.END_OF_SIMULATION ->
-                    Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Received END_OF_SIMULATION event. Broker will now proceed with final cleanup.");
-
-            // CloudSim's core shutdown mechanism will handle calling shutdownEntity().
-            case null, default -> processOtherEvent(ev);
-        }
     }
 
     @Override
