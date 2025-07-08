@@ -214,6 +214,9 @@ func ConvertToCsNode(k8sNode *corev1.Node) CsNode {
 	id := 0
 	mips := 0
 	ram := 0
+	bw := 0
+	size := 0
+	nodeType := ""
 
 	// Extract ID from name like "csnode-42"
 	if strings.HasPrefix(k8sNode.Name, "csnode-") {
@@ -239,11 +242,31 @@ func ConvertToCsNode(k8sNode *corev1.Node) CsNode {
 		ram = int(memQty.Value() / (1024 * 1024))
 	}
 
+	// Extract annotations for BW, Size, Type
+	if val, ok := k8sNode.Annotations["cloudsim.io/bw"]; ok {
+		if parsed, err := strconv.Atoi(val); err == nil {
+			bw = parsed
+		}
+	}
+
+	if val, ok := k8sNode.Annotations["cloudsim.io/size"]; ok {
+		if parsed, err := strconv.Atoi(val); err == nil {
+			size = parsed
+		}
+	}
+
+	if val, ok := k8sNode.Annotations["cloudsim.io/type"]; ok {
+		nodeType = val
+	}
+
 	return CsNode{
 		ID:       id,
 		Name:     k8sNode.Name,
 		MIPSAval: mips,
 		RAMAval:  ram,
+		BW:       int64(bw),
+		Size:     int64(size),
+		Type:     nodeType,
 	}
 }
 

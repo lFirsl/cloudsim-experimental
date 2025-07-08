@@ -28,6 +28,7 @@ func NewCommunicator(url string, kc *kube_client.KubeClient) *Communicator {
 	}
 }
 
+// HandleNodes processes node sync requests from CloudSim
 func (c *Communicator) HandleNodes(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Starting HandleNodes()")
 	if r.Method != http.MethodPost {
@@ -61,7 +62,7 @@ func (c *Communicator) HandleNodes(w http.ResponseWriter, r *http.Request) {
 		incomingMap[node.ID] = node
 	}
 
-	// Step 3: Determine deletions
+	// Step 3: Determine deletions (nodes in cluster but missing from CloudSim)
 	var toDelete []*corev1.Node
 	for id, node := range currentMap {
 		if _, exists := incomingMap[id]; !exists {
@@ -69,16 +70,17 @@ func (c *Communicator) HandleNodes(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Step 4: Determine additions/updates
-	var toAddOrUpdate []CsNode
+	// Step 4: Determine additions (nodes in CloudSim but missing from cluster)
+	var toAdd []CsNode
 	for id, newNode := range incomingMap {
-		existingNode, exists := currentMap[id]
-		if !exists || !nodesEqual(ConvertToCsNode(existingNode), newNode) {
-			toAddOrUpdate = append(toAddOrUpdate, newNode)
+		if _, exists := currentMap[id]; !exists {
+			toAdd = append(toAdd, newNode)
 		}
 	}
 
-	// Step 5: Delete
+	log.Printf("DEBUG: Nodes to add (%d) and delete (%d)", len(toAdd), len(toDelete))
+
+	// Step 5: Delete nodes
 	if len(toDelete) > 0 {
 		if err := c.kubeClient.DeleteNodes(toDelete); err != nil {
 			http.Error(w, "Failed to delete outdated nodes: "+err.Error(), http.StatusInternalServerError)
@@ -86,10 +88,10 @@ func (c *Communicator) HandleNodes(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Step 6: Add or update
-	if len(toAddOrUpdate) > 0 {
-		if err := c.SendFakeNodesFromCs(toAddOrUpdate); err != nil {
-			http.Error(w, "Failed to send updated nodes: "+err.Error(), http.StatusInternalServerError)
+	// Step 6: Add nodes
+	if len(toAdd) > 0 {
+		if err := c.SendFakeNodesFromCs(toAdd); err != nil {
+			http.Error(w, "Failed to create new nodes: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 	}
@@ -105,7 +107,7 @@ func (c *Communicator) HandleNodes(w http.ResponseWriter, r *http.Request) {
 		}
 		if ok {
 			w.WriteHeader(http.StatusOK)
-			fmt.Fprintf(w, "Synced %d nodes (added/updated: %d, deleted: %d)\n", len(incomingMap), len(toAddOrUpdate), len(toDelete))
+			fmt.Fprintf(w, "Synced %d nodes (added: %d, deleted: %d)\n", len(incomingMap), len(toAdd), len(toDelete))
 			return
 		}
 		time.Sleep(delay)
