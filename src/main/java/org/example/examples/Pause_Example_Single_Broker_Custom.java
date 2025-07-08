@@ -110,7 +110,7 @@ public class Pause_Example_Single_Broker_Custom {
 			Datacenter datacenter0 = createDatacenter("Datacenter_0");
 
 			//Third step: Create Broker
-			broker = new Live_Kubernetes_Broker_Ex("Broker_0",2000);
+			broker = new Live_Kubernetes_Broker_Ex("Broker_0",-1);
 			int brokerId = broker.getId();
 
 			//Fourth step: Create VMs and Cloudlets and send them to broker
@@ -143,7 +143,8 @@ public class Pause_Example_Single_Broker_Custom {
 			metrics.stopWallClock();
 
 			printCloudletList(newList1);
-			metrics.printSummary(CloudSim.clock());
+			metrics.printSummary(broker.getFinalSimTime());
+			broker.sendResetRequestToControlPlane();
 
 			Log.println("CloudSimExample7 finished!");
 		}
