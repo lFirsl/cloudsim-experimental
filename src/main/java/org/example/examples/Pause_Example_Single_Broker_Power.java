@@ -11,11 +11,17 @@
 package org.example.examples;
 
 import org.cloudbus.cloudsim.*;
-import org.cloudbus.cloudsim.EX.DatacenterBrokerEX;
 import org.cloudbus.cloudsim.core.CloudSim;
+import org.cloudbus.cloudsim.power.PowerDatacenter;
+import org.cloudbus.cloudsim.power.PowerHost;
+import org.cloudbus.cloudsim.power.PowerVm;
+import org.cloudbus.cloudsim.power.models.PowerModel;
+import org.cloudbus.cloudsim.power.models.PowerModelLinear;
 import org.cloudbus.cloudsim.provisioners.BwProvisionerSimple;
 import org.cloudbus.cloudsim.provisioners.PeProvisionerSimple;
 import org.cloudbus.cloudsim.provisioners.RamProvisionerSimple;
+import org.example.kubernetes_broker.Live_Kubernetes_Broker_Ex;
+import org.example.metrics.SimulationMetrics;
 
 import java.text.DecimalFormat;
 import java.util.ArrayList;
@@ -28,8 +34,8 @@ import java.util.List;
  * and create simulation entities (a DatacenterBroker in this example)
  * dynamically.
  */
-public class Pause_Example_Single_Broker {
-	public static DatacenterBrokerEX broker;
+public class Pause_Example_Single_Broker_Power {
+	public static Live_Kubernetes_Broker_Ex broker;
 
 	/** The cloudlet list. */
 	private static List<Cloudlet> cloudletList;
@@ -50,10 +56,25 @@ public class Pause_Example_Single_Broker {
 		String vmm = "Xen"; //VMM name
 
 		//create VMs
-		Vm[] vm = new Vm[vms];
+		PowerVm[] vm = new PowerVm[vms];
 
 		for(int i=0;i<vms;i++){
-			vm[i] = new Vm(idShift + i, userId, mips, pesNumber, ram, bw, size, vmm, new CloudletSchedulerTimeShared());
+			double schedulingInterval = 5.0;  // Example: 5 seconds (choose based on your simulation granularity)
+			int priority = 0;  // Typically 0 unless you use VM priorities
+
+			vm[i] = new PowerVm(
+					idShift + i,           // VM ID
+					userId,                // User ID
+					mips,                  // MIPS
+					pesNumber,             // Number of PEs
+					ram,                   // RAM
+					bw,                    // Bandwidth
+					size,                  // Storage
+					priority,              // Priority (usually 0)
+					vmm,                   // VMM (e.g., "Xen")
+					new CloudletSchedulerTimeShared(),  // Cloudlet Scheduler
+					schedulingInterval     // Scheduling Interval (Power model polling)
+			);
 			list.add(vm[i]);
 		}
 
@@ -105,10 +126,11 @@ public class Pause_Example_Single_Broker {
 
 			// Second step: Create Datacenters
 			//Datacenters are the resource providers in CloudSim. We need at list one of them to run a CloudSim simulation
-			Datacenter datacenter0 = createDatacenter("Datacenter_0");
+			PowerDatacenter datacenter0 = createDatacenter("Datacenter_0");
+			SimulationMetrics metrics = new SimulationMetrics(datacenter0);
 
 			//Third step: Create Broker
-			broker = new DatacenterBrokerEX("Broker_0",2000);
+			broker = new Live_Kubernetes_Broker_Ex("Broker_0",2000);
 			int brokerId = broker.getId();
 
 			//Fourth step: Create VMs and Cloudlets and send them to broker
@@ -130,14 +152,20 @@ public class Pause_Example_Single_Broker {
 			CloudSim.resumeSimulation();
 
 			// Fifth step: Starts the simulation
+			metrics.startWallClock();
 			CloudSim.startSimulation();
 
 			// Final step: Print results when simulation is over
 			List<Cloudlet> newList1 = broker.getCloudletReceivedList();
+			Log.printConcat("Broker has a lifetime of: ",broker.getLifeLength());
 
 			CloudSim.stopSimulation();
+			metrics.stopWallClock();
 
 			printCloudletList(newList1);
+			metrics.printSummary(CloudSim.clock());
+			double energy = datacenter0.getPower();
+			System.out.println("Total energy consumed (kWh): " + energy);
 
 			Log.println("CloudSimExample7 finished!");
 		}
@@ -148,7 +176,7 @@ public class Pause_Example_Single_Broker {
 		}
 	}
 
-	private static Datacenter createDatacenter(String name){
+	private static PowerDatacenter createDatacenter(String name){
 
 		// Here are the steps needed to create a PowerDatacenter:
 		// 1. We need to create a list to store one or more
@@ -181,6 +209,7 @@ public class Pause_Example_Single_Broker {
 		long storage = 1000000; //host storage
 		int bw = 10000;
 
+		PowerModel powerModel = new PowerModelLinear(250,30);  // 250 watts max
 		hostList.add(
 				new Host(
 						hostId,
@@ -188,7 +217,7 @@ public class Pause_Example_Single_Broker {
 						new BwProvisionerSimple(bw),
 						storage,
 						peList1,
-						new VmSchedulerTimeShared(peList1)
+						new VmSchedulerSpaceShared(peList1)
 				)
 		); // This is our first machine
 
@@ -201,7 +230,7 @@ public class Pause_Example_Single_Broker {
 						new BwProvisionerSimple(bw),
 						storage,
 						peList2,
-						new VmSchedulerTimeShared(peList2)
+						new VmSchedulerSpaceShared(peList2)
 				)
 		); // Second machine
 
@@ -224,9 +253,10 @@ public class Pause_Example_Single_Broker {
 
 
 		// 6. Finally, we need to create a PowerDatacenter object.
-		Datacenter datacenter = null;
+		PowerDatacenter datacenter = null;
 		try {
-			datacenter = new Datacenter(name, characteristics, new VmAllocationPolicySimple(hostList), storageList, 0);
+			//todo: This probably needs some sort of PowerVMAllocation policy - but which one?
+			datacenter = new PowerDatacenter(name, characteristics, new VmAllocationPolicySimple(hostList), storageList, 0);
 		} catch (Exception e) {
 			e.printStackTrace();
 		}

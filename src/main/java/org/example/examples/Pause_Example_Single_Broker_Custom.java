@@ -10,6 +10,7 @@
 
 package org.example.examples;
 
+import org.example.metrics.SimulationMetrics;
 import org.cloudbus.cloudsim.*;
 import org.cloudbus.cloudsim.core.CloudSim;
 import org.cloudbus.cloudsim.provisioners.BwProvisionerSimple;
@@ -102,6 +103,7 @@ public class Pause_Example_Single_Broker_Custom {
 
 			// Initialize the CloudSim library
 			CloudSim.init(num_user, calendar, trace_flag);
+			SimulationMetrics metrics = new SimulationMetrics(null);
 
 			// Second step: Create Datacenters
 			//Datacenters are the resource providers in CloudSim. We need at list one of them to run a CloudSim simulation
@@ -130,6 +132,7 @@ public class Pause_Example_Single_Broker_Custom {
 			CloudSim.resumeSimulation();
 
 			// Fifth step: Starts the simulation
+			metrics.startWallClock();
 			CloudSim.startSimulation();
 
 			// Final step: Print results when simulation is over
@@ -137,8 +140,10 @@ public class Pause_Example_Single_Broker_Custom {
 			Log.printConcat("Broker has a lifetime of: ",broker.getLifeLength());
 
 			CloudSim.stopSimulation();
+			metrics.stopWallClock();
 
 			printCloudletList(newList1);
+			metrics.printSummary(CloudSim.clock());
 
 			Log.println("CloudSimExample7 finished!");
 		}

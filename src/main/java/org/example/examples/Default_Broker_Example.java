@@ -9,6 +9,7 @@ import org.cloudbus.cloudsim.core.VirtualEntity;
 import org.cloudbus.cloudsim.provisioners.BwProvisionerSimple;
 import org.cloudbus.cloudsim.provisioners.PeProvisionerSimple;
 import org.cloudbus.cloudsim.provisioners.RamProvisionerSimple;
+import org.example.metrics.SimulationMetrics;
 
 import java.text.DecimalFormat;
 import java.util.ArrayList;
@@ -172,13 +173,18 @@ public class Default_Broker_Example {
             broker.submitCloudletList(cloudletList);
 
             // Starts the simulation
+            SimulationMetrics metrics = new SimulationMetrics(null);
+            metrics.startWallClock();
             CloudSim.startSimulation();
 
+            final Double simTime = CloudSim.clock();
             CloudSim.stopSimulation();
+            metrics.stopWallClock();
 
             // Print results when simulation is over
             List<Cloudlet> newList = broker.getCloudletReceivedList();
             printCloudletList(newList);
+            metrics.printSummary(CloudSim.clock());
 
             Log.printLine("CloudSimExample1 finished!");
 

@@ -12,6 +12,7 @@ import org.cloudbus.cloudsim.provisioners.RamProvisionerSimple;
 import org.cloudbus.cloudsim.VmSchedulerTimeShared; // Using TimeShared for VMs
 import org.cloudbus.cloudsim.CloudletSchedulerTimeShared; // Using TimeShared for Cloudlets
 import org.example.kubernetes_broker.Live_Kubernetes_Broker;
+import org.example.kubernetes_broker.Live_Kubernetes_Broker_Ex;
 
 import java.text.DecimalFormat;
 import java.util.*;
@@ -46,7 +47,7 @@ public class Custom_Broker_Example {
             CloudSim.init(1,Calendar.getInstance(),false);
 
             //Get a broker
-            Live_Kubernetes_Broker broker = createBroker();
+            Live_Kubernetes_Broker_Ex broker = createBroker();
 
             hostList = new ArrayList<>(); // Initialize hostList here
             int hostID = 0;
@@ -210,10 +211,10 @@ public class Custom_Broker_Example {
         return datacenter;
     }
 
-    private static Live_Kubernetes_Broker createBroker() {
-        Live_Kubernetes_Broker broker = null;
+    private static Live_Kubernetes_Broker_Ex createBroker() {
+        Live_Kubernetes_Broker_Ex broker = null;
         try {
-            broker = new Live_Kubernetes_Broker("Broker");
+            broker = new Live_Kubernetes_Broker_Ex("Broker");
         } catch (Exception e) {
             e.printStackTrace();
             return null;

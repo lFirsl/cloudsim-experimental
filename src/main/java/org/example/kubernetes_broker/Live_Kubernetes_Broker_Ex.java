@@ -24,6 +24,7 @@ public class Live_Kubernetes_Broker_Ex extends DatacenterBrokerEX {
 
     private static final String CONTROL_PLANE_URL = "http://localhost:8080";
     private final HttpClient httpClient;
+    private Double finalSimTime;
 
     //Map of
     private final Map<Integer, Cloudlet> pendingCloudlets = new HashMap<>();
@@ -57,6 +58,16 @@ public class Live_Kubernetes_Broker_Ex extends DatacenterBrokerEX {
         if (getDatacenterCharacteristicsList().size() == getDatacenterIdsList().size()) {
             createVmsInDatacenter(getDatacenterIdsList().getFirst());
         }
+    }
+
+    @Override
+    public void shutdownEntity(){
+        finalSimTime = CloudSim.clock();
+        super.shutdownEntity();
+    }
+
+    public Double getFinalSimTime() {
+        return finalSimTime;
     }
 
     @Override
@@ -107,6 +118,7 @@ public class Live_Kubernetes_Broker_Ex extends DatacenterBrokerEX {
             }
         }
     }
+
     private void sendAllActiveNodesToControlPlane() {
         List<ObjectNode> nodeJsons = new ArrayList<>();
         ObjectMapper mapper = new ObjectMapper();
