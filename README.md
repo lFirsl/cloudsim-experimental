@@ -12,9 +12,12 @@ an adapter. The adapter converts the CloudSim resources (e.g. GuestEntities and 
 fake K8s equivalents (nodes and pods) using [KWOK](https://kwok.sigs.k8s.io/), then waits for the
 cluster to perform scheduling. Following successful scheduling, the adapter returns the results back to CloudSim,
 which interprets them as native CloudSim resources and resumes simulation.
+### Current Design
+This diagram showcases the current design that this repository aims to follow:
+![](images/Current_Design.png)
 
 ### Prototype Design
-This design is outdated but roughly showcases the original thought process. Soon to be updated.
+This design is outdated but roughly showcases the original thought process.
 ![](images/CloudSim_Scheduler_Adapter.png)
 
 
