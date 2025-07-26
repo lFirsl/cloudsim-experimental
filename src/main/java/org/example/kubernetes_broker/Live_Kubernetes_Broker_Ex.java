@@ -45,12 +45,6 @@ public class Live_Kubernetes_Broker_Ex extends DatacenterBrokerEX {
     }
 
     @Override
-    public void startEntity() {
-        super.startEntity();
-        schedule(getId(), 0.0, CloudActionTags.RESOURCE_CHARACTERISTICS_REQUEST);
-    }
-
-    @Override
     protected void processResourceCharacteristics(SimEvent ev) {
         DatacenterCharacteristics characteristics = (DatacenterCharacteristics) ev.getData();
         getDatacenterCharacteristicsList().put(characteristics.getId(), characteristics);
