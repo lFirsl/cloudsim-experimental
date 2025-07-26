@@ -1,4 +1,4 @@
-package org.example.examples;
+package org.cloudbus.cloudsim.examples;
 
 /*
  * Title:        CloudSim Toolkit
@@ -9,24 +9,37 @@ package org.example.examples;
  * Copyright (c) 2009, The University of Melbourne, Australia
  */
 
-import org.cloudbus.cloudsim.*;
-import org.cloudbus.cloudsim.EX.DatacenterBrokerEX;
-import org.cloudbus.cloudsim.core.CloudSim;
-import org.cloudbus.cloudsim.provisioners.BwProvisionerSimple;
-import org.cloudbus.cloudsim.provisioners.PeProvisionerSimple;
-import org.cloudbus.cloudsim.provisioners.RamProvisionerSimple;
-
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.LinkedList;
 import java.util.List;
 
+import org.cloudbus.cloudsim.Cloudlet;
+import org.cloudbus.cloudsim.CloudletSchedulerTimeShared;
+import org.cloudbus.cloudsim.Datacenter;
+import org.cloudbus.cloudsim.DatacenterBroker;
+import org.cloudbus.cloudsim.DatacenterCharacteristics;
+import org.cloudbus.cloudsim.Host;
+import org.cloudbus.cloudsim.Log;
+import org.cloudbus.cloudsim.Pe;
+import org.cloudbus.cloudsim.Storage;
+import org.cloudbus.cloudsim.UtilizationModel;
+import org.cloudbus.cloudsim.UtilizationModelFull;
+import org.cloudbus.cloudsim.Vm;
+import org.cloudbus.cloudsim.VmAllocationPolicySimple;
+import org.cloudbus.cloudsim.VmSchedulerTimeShared;
+import org.cloudbus.cloudsim.core.CloudSim;
+import org.cloudbus.cloudsim.provisioners.BwProvisionerSimple;
+import org.cloudbus.cloudsim.provisioners.PeProvisionerSimple;
+import org.cloudbus.cloudsim.provisioners.RamProvisionerSimple;
+import org.example.kubernetes_broker.Live_Kubernetes_Broker_Ex;
+
 /**
  * A simple example showing how to create a data center with one host and run one cloudlet on it.
  */
-public class Simple_Example_Ex {
-    public static DatacenterBrokerEX broker;
+public class Simple_Example_Live {
+    public static Live_Kubernetes_Broker_Ex broker;
 
     /** The cloudlet list. */
     private static List<Cloudlet> cloudletList;
@@ -74,7 +87,7 @@ public class Simple_Example_Ex {
             Datacenter datacenter0 = createDatacenter("Datacenter_0");
 
             // Third step: Create Broker
-            broker = new DatacenterBrokerEX("Broker");;
+            broker = new Live_Kubernetes_Broker_Ex("Broker");;
             int brokerId = broker.getId();
 
             // Fourth step: Create one virtual machine
@@ -130,6 +143,7 @@ public class Simple_Example_Ex {
             printCloudletList(newList);
 
             Log.println("CloudSimExample1 finished!");
+            broker.sendResetRequestToControlPlane();
         } catch (Exception e) {
             e.printStackTrace();
             Log.println("Unwanted errors happen");

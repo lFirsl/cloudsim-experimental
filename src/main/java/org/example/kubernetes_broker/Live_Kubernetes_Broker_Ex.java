@@ -262,6 +262,7 @@ public class Live_Kubernetes_Broker_Ex extends DatacenterBrokerEX {
 
         Log.println("Finished scheduling batch. Submitting to CloudSim.");
         super.submitCloudlets();  // If still needed
+        Log.println("CloudSim finished scheduling batch.");
     }
 
     @Override
