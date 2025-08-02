@@ -1,0 +1,31 @@
+# my-scheduler-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-scheduler
+  namespace: kube-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: my-scheduler
+  template:
+    metadata:
+      labels:
+        app: my-scheduler
+    spec:
+      serviceAccountName: my-scheduler
+      containers:
+        - name: scheduler
+          image: registry.k8s.io/kube-scheduler:v1.33.0
+          command:
+            - kube-scheduler
+            - --config=/etc/scheduler/my-scheduler.yaml
+            - --v=3
+          volumeMounts:
+            - name: config
+              mountPath: /etc/scheduler
+      volumes:
+        - name: config
+          configMap:
+            name: my-scheduler-config

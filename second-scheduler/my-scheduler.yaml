@@ -1,0 +1,24 @@
+apiVersion: kubescheduler.config.k8s.io/v1
+kind: KubeSchedulerConfiguration
+clientConnection:
+  kubeconfig: /etc/kube-scheduler/kubeconfig.yaml
+leaderElection:
+  leaderElect: false
+profiles:
+  - schedulerName: my-scheduler
+    plugins:
+      score:
+        enabled:
+          - name: NodeResourcesFit
+        disabled:
+          - name: "*"
+    pluginConfig:
+      - name: NodeResourcesFit
+        args:
+          scoringStrategy:
+            type: MostAllocated
+            resources:
+              - name: cpu
+                weight: 1
+              - name: memory
+                weight: 1
