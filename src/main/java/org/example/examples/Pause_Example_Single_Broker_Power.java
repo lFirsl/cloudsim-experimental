@@ -10,13 +10,19 @@
 
 package org.example.examples;
 
+import org.apache.commons.math3.analysis.function.Power;
 import org.cloudbus.cloudsim.power.PowerDatacenter;
 import org.cloudbus.cloudsim.power.PowerHost;
 import org.cloudbus.cloudsim.power.PowerVm;
 import org.cloudbus.cloudsim.power.PowerVmAllocationPolicyMigrationStaticThreshold;
 import org.cloudbus.cloudsim.power.models.PowerModel;
 import org.cloudbus.cloudsim.power.models.PowerModelLinear;
+import org.cloudbus.cloudsim.power.models.PowerModelSpecPowerHpProLiantMl110G3PentiumD930;
 import org.cloudbus.cloudsim.selectionPolicies.SelectionPolicyMinimumUtilization;
+import org.example.helper.Constants;
+import org.example.helper.Helper;
+import org.example.kubernetes_broker.PowerDatacenterCustom;
+import org.example.kubernetes_broker.VmAllocationPolicySimpleCustom;
 import org.example.metrics.SimulationMetrics;
 import org.cloudbus.cloudsim.*;
 import org.cloudbus.cloudsim.core.CloudSim;
@@ -51,10 +57,10 @@ public class Pause_Example_Single_Broker_Power {
 
 		//VM Parameters
 		long size = 10000; //image size (MB)
-		int ram = 512; //vm memory (MB)
-		int mips = 250;
+		int ram = 1024; //vm memory (MB)
+		int mips = 1000;
 		long bw = 1000;
-		int pesNumber = 1; //number of cpus
+		int pesNumber = 2; //number of cpus
 		String vmm = "Xen"; //VMM name
 
 		//create VMs
@@ -78,7 +84,7 @@ public class Pause_Example_Single_Broker_Power {
 		long fileSize = 300;
 		long outputSize = 300;
 		int pesNumber = 1;
-		UtilizationModel utilizationModel = new UtilizationModelFull();
+		UtilizationModel utilizationModel = new UtilizationModelStochastic(42);
 
 		Cloudlet[] cloudlet = new Cloudlet[cloudlets];
 
@@ -114,7 +120,7 @@ public class Pause_Example_Single_Broker_Power {
 
 			// Second step: Create Datacenters
 			//Datacenters are the resource providers in CloudSim. We need at list one of them to run a CloudSim simulation
-			Datacenter datacenter0 = createDatacenter("Datacenter_0");
+			PowerDatacenter datacenter0 = createDatacenter("Datacenter_0");
 
 			//Third step: Create Broker
 			broker = new Live_Kubernetes_Broker_Ex("Broker_0",-1);
@@ -140,7 +146,7 @@ public class Pause_Example_Single_Broker_Power {
 
 			// Fifth step: Starts the simulation
 			metrics.startWallClock();
-			CloudSim.startSimulation();
+			double lastClock = CloudSim.startSimulation();
 
 			// Final step: Print results when simulation is over
 			List<Cloudlet> newList1 = broker.getCloudletReceivedList();
@@ -150,7 +156,18 @@ public class Pause_Example_Single_Broker_Power {
 			metrics.stopWallClock();
 
 			printCloudletList(newList1);
-			metrics.printSummary(broker.getFinalSimTime());
+			metrics.printSummary(lastClock);
+
+			Helper.printResults(
+					datacenter0,
+					vmlist,
+					lastClock,
+					"Pause_Example_Single_Broker_Power",
+					Constants.OUTPUT_CSV,
+					"C:\\Users\\flori\\Desktop");
+
+
+
 			broker.sendResetRequestToControlPlane();
 
 			Log.println("CloudSimExample7 finished!");
@@ -162,7 +179,7 @@ public class Pause_Example_Single_Broker_Power {
 		}
 	}
 
-	private static Datacenter createDatacenter(String name){
+	private static PowerDatacenter createDatacenter(String name){
 
 		// Here are the steps needed to create a PowerDatacenter:
 		// 1. We need to create a list to store one or more
@@ -195,7 +212,8 @@ public class Pause_Example_Single_Broker_Power {
 		long storage = 1000000; //host storage
 		int bw = 10000;
 
-		PowerModel powerModel = new PowerModelLinear(250,30);  // 250 watts max
+		PowerModel powerModelLow = new PowerModelLinear(250,30);  // 250 watts max
+		PowerModel powerModelHigh = new PowerModelLinear(500,50);  // 250 watts max
 		hostList.add(
 				new PowerHost(
 						hostId,
@@ -204,7 +222,7 @@ public class Pause_Example_Single_Broker_Power {
 						storage,
 						peList1,
 						new VmSchedulerTimeShared(peList1),
-						powerModel
+						powerModelHigh
 				)
 		); // This is our first machine
 
@@ -218,7 +236,7 @@ public class Pause_Example_Single_Broker_Power {
 						storage,
 						peList2,
 						new VmSchedulerTimeShared(peList2),
-						powerModel
+						powerModelLow
 				)
 		); // Second machine
 
@@ -241,9 +259,12 @@ public class Pause_Example_Single_Broker_Power {
 
 
 		// 6. Finally, we need to create a PowerDatacenter object.
-		Datacenter datacenter = null;
+		PowerDatacenter datacenter = null;
 		try {
-			datacenter = new PowerDatacenter(name, characteristics, new PowerVmAllocationPolicyMigrationStaticThreshold(hostList,new SelectionPolicyMinimumUtilization(),80), storageList, 300);		} catch (Exception e) {
+			//datacenter = new Datacenter(name, characteristics, new VmAllocationPolicySimple(hostList), storageList, 2000);
+			datacenter = new PowerDatacenterCustom(name, characteristics, new VmAllocationPolicySimpleCustom(hostList), storageList, 500);
+			datacenter.setDisableMigrations(true);
+		} catch (Exception e) {
 			e.printStackTrace();
 		}
 

@@ -79,7 +79,7 @@ func (kc *KubeClient) DeletePodAndWaitForRescheduling(cloudletID int) ([]*corev1
 	}
 
 	// Watch for rescheduling
-	const maxAttempts = 20
+	const maxAttempts = 50
 	const delay = time.Second / 4
 
 	for i := 0; i < maxAttempts; i++ {

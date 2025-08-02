@@ -133,17 +133,17 @@ public class Pause_Example_Single_Broker_Custom {
 
 			// Fifth step: Starts the simulation
 			metrics.startWallClock();
-			CloudSim.startSimulation();
+			double finaltime = CloudSim.startSimulation();
 
 			// Final step: Print results when simulation is over
 			List<Cloudlet> newList1 = broker.getCloudletReceivedList();
 			Log.printConcat("Broker has a lifetime of: ",broker.getLifeLength());
 
-			CloudSim.stopSimulation();
+			 CloudSim.stopSimulation();
 			metrics.stopWallClock();
 
 			printCloudletList(newList1);
-			metrics.printSummary(broker.getFinalSimTime());
+			metrics.printSummary(finaltime);
 			broker.sendResetRequestToControlPlane();
 
 			Log.println("CloudSimExample7 finished!");

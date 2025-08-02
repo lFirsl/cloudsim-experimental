@@ -15,11 +15,19 @@ import org.cloudbus.cloudsim.core.CloudSim;
 import org.cloudbus.cloudsim.core.GuestEntity;
 import org.cloudbus.cloudsim.core.HostEntity;
 import org.cloudbus.cloudsim.core.VirtualEntity;
+import org.cloudbus.cloudsim.power.PowerDatacenter;
+import org.cloudbus.cloudsim.power.PowerHost;
 import org.cloudbus.cloudsim.power.PowerVm;
+import org.cloudbus.cloudsim.power.PowerVmAllocationPolicyMigrationStaticThreshold;
+import org.cloudbus.cloudsim.power.models.PowerModel;
+import org.cloudbus.cloudsim.power.models.PowerModelLinear;
 import org.cloudbus.cloudsim.provisioners.BwProvisionerSimple;
 import org.cloudbus.cloudsim.provisioners.PeProvisionerSimple;
 import org.cloudbus.cloudsim.provisioners.RamProvisionerSimple;
+import org.cloudbus.cloudsim.selectionPolicies.SelectionPolicyFirstFit;
 import org.example.kubernetes_broker.Live_Kubernetes_Broker;
+import org.example.kubernetes_broker.Live_Kubernetes_Broker_Ex;
+import org.example.helper.Helper;
 
 import java.text.DecimalFormat;
 import java.util.ArrayList;
@@ -33,7 +41,7 @@ import java.util.List;
 public class Simple_Example_Power_Model {
 
     /** The host list. */
-    private static List<HostEntity> hostList = new ArrayList<>();
+    private static List<Host> hostList = new ArrayList<>();
 
     /** The cloudlet list. */
     private static List<Cloudlet> cloudletList;
@@ -53,12 +61,12 @@ public class Simple_Example_Power_Model {
             CloudSim.init(num_users,calendar,false);
 
             // Then, create the broker - the thing that manages what gets assigned where
-            Live_Kubernetes_Broker broker = createBroker();
+            Live_Kubernetes_Broker_Ex broker = createBroker();
             int brokerId = broker.getId();
 
             // Create host - this is the "actual" PC. We define the specs how we want. Handy!
-            int mips = 1000; // Millions of Onstructions per second, was it?
-            int ram = 8192; // Really, what PC has less than 8GB of RAM these days?
+            int mips = 10000; // Millions of Onstructions per second, was it?
+            int ram = 80192; // Really, what PC has less than 8GB of RAM these days?
             long storage = 1000000; // host storage
             int bw = 10000;
 
@@ -69,16 +77,24 @@ public class Simple_Example_Power_Model {
             }
 
             //Here, we're adding hosts
+            PowerModel powerModel = new PowerModelLinear(250,30);  // 250 watts max
+
             hostList.add(
-                    new Host(0, new RamProvisionerSimple(ram), new BwProvisionerSimple(bw), storage, peList, new VmSchedulerSpaceShared(peList))
+                    new PowerHost(0, new RamProvisionerSimple(ram), new BwProvisionerSimple(bw), storage, peList, new VmSchedulerSpaceShared(peList),powerModel)
+            );
+            hostList.add(
+                    new PowerHost(1, new RamProvisionerSimple(ram), new BwProvisionerSimple(bw), storage, peList, new VmSchedulerSpaceShared(peList),powerModel)
+            );
+            hostList.add(
+                    new PowerHost(2, new RamProvisionerSimple(ram), new BwProvisionerSimple(bw), storage, peList, new VmSchedulerSpaceShared(peList),powerModel)
             );
 
             vmlist = new ArrayList<>(); // Prepare vmlist
 
             // VM requirements for what will be hosting containers on the host
-            mips = 1000;
+            mips = 10000;
             long size = 10000; // image size (MB)
-            ram = 512; // vm memory (MB)
+            ram = 5012; // vm memory (MB)
             bw = 1000;
             int pesNumber = 2; // number of cpus
             String vmm = "Xen"; // VMM name
@@ -88,10 +104,9 @@ public class Simple_Example_Power_Model {
             peList.add(new Pe(0, new PeProvisionerSimple(mips/4)));
             peList.add(new Pe(1, new PeProvisionerSimple(mips/4)));
             //Then we make a VM using said cpu cores.
-            PowerVm vm1 = new PowerVm(1, brokerId, (double) mips/2, pesNumber, ram, bw, size, 0, vmm, new CloudletSchedulerTimeShared(),
+            Vm vm1 = new PowerVm(1, brokerId, (double) mips/2, pesNumber, ram, bw, size, 0, vmm, new CloudletSchedulerTimeShared(),
                     300);
             vmlist.add(vm1);
-            hostList.add(vm1);
 
             //And again
             peList = new ArrayList<>();
@@ -103,7 +118,6 @@ public class Simple_Example_Power_Model {
                     new BwProvisionerSimple(bw),
                     peList);
             vmlist.add(vm3);
-            hostList.add(vm3);
 
 
             // We then make the containers we want to simulate
@@ -212,7 +226,7 @@ public class Simple_Example_Power_Model {
 
         Datacenter datacenter = null;
         try {
-            datacenter = new Datacenter(name, characteristics, new VmAllocationPolicySimple(hostList), storageList, 0);
+            datacenter = new PowerDatacenter(name, characteristics, new PowerVmAllocationPolicyMigrationStaticThreshold(hostList,new SelectionPolicyFirstFit<>(),80), storageList, 0);
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -228,10 +242,10 @@ public class Simple_Example_Power_Model {
      *
      * @return the datacenter broker
      */
-    private static Live_Kubernetes_Broker createBroker() {
-        Live_Kubernetes_Broker broker = null;
+    private static Live_Kubernetes_Broker_Ex createBroker() {
+        Live_Kubernetes_Broker_Ex broker = null;
         try {
-            broker = new Live_Kubernetes_Broker("Broker");
+            broker = new Live_Kubernetes_Broker_Ex("Broker");
         } catch (Exception e) {
             e.printStackTrace();
             return null;
