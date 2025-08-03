@@ -57,10 +57,10 @@ public class Pause_Example_Single_Broker_Power {
 
 		//VM Parameters
 		long size = 10000; //image size (MB)
-		int ram = 1024; //vm memory (MB)
-		int mips = 1000;
+		int ram = 512; //vm memory (MB)
+		int mips = 250;
 		long bw = 1000;
-		int pesNumber = 2; //number of cpus
+		int pesNumber = 1; //number of cpus
 		String vmm = "Xen"; //VMM name
 
 		//create VMs
