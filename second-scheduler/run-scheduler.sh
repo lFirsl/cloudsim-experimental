@@ -2,6 +2,7 @@
 
 docker run --rm \
   --network host \
+  --name my-scheduler \
   -v $(pwd)/my-scheduler.yaml:/etc/kube-scheduler/my-scheduler.yaml \
   -v $(pwd)/kubeconfig.yaml:/etc/kube-scheduler/kubeconfig.yaml \
   -v $(pwd)/admin.crt:/etc/kube-scheduler/admin.crt \

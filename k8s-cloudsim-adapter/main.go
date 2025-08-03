@@ -22,13 +22,15 @@ func main() {
 
 	//==========K8S=SETUP========
 	var kubeconfig *string
+	var schedulerName = flag.String("scheduler", "default-scheduler", "Name of the Kubernetes scheduler to use")
 	if home := homedir.HomeDir(); home != "" {
 		kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
 	} else {
 		kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
 	}
 	flag.Parse()
-	kc := kube_client.NewKubeClient(*kubeconfig)
+	kc := kube_client.NewKubeClient(*kubeconfig, *schedulerName)
+	fmt.Printf("Using scheduler: %s\n", *schedulerName)
 
 	pods, err := kc.GetPods("default")
 	if err != nil {

@@ -12,10 +12,11 @@ import (
 )
 
 type KubeClient struct {
-	clientset *kubernetes.Clientset
+	clientset     *kubernetes.Clientset
+	schedulerName string
 }
 
-func NewKubeClient(kubeconfigPath string) *KubeClient {
+func NewKubeClient(kubeconfigPath string, scheduler string) *KubeClient {
 	if kubeconfigPath == "" {
 		kubeconfigPath = filepath.Join(homedir.HomeDir(), ".kube", "config")
 	}
@@ -30,8 +31,10 @@ func NewKubeClient(kubeconfigPath string) *KubeClient {
 		panic(err)
 	}
 
-	return &KubeClient{clientset: clientset}
+	return &KubeClient{clientset: clientset, schedulerName: scheduler}
 }
+
+func (kc *KubeClient) SchedulerName() string { return kc.schedulerName }
 
 func (kc *KubeClient) ResetCluster() error {
 	err := kc.DeleteAllPods()

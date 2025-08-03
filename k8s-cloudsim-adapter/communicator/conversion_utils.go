@@ -32,6 +32,7 @@ func (c *Communicator) SendFakePodFromCs(csPod CsPod) error {
 			},
 		},
 		Spec: corev1.PodSpec{
+			SchedulerName: c.kubeClient.SchedulerName(),
 			Affinity: &corev1.Affinity{
 				NodeAffinity: &corev1.NodeAffinity{
 					RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
