@@ -2,6 +2,7 @@ version: "3.8"
 services:
   my-scheduler:
     image: registry.k8s.io/kube-scheduler:v1.33.0
+    container_name: my-scheduler
     network_mode: "host"
     volumes:
       - ./my-scheduler.yaml:/etc/kube-scheduler/my-scheduler.yaml
@@ -13,4 +14,4 @@ services:
       - kube-scheduler
       - --config=/etc/kube-scheduler/my-scheduler.yaml
       - --secure-port=10260
-      - --v=3
+      - --v=8
