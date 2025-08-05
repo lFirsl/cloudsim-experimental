@@ -10,19 +10,14 @@
 
 package org.example.examples;
 
-import org.apache.commons.math3.analysis.function.Power;
 import org.cloudbus.cloudsim.power.PowerDatacenter;
 import org.cloudbus.cloudsim.power.PowerHost;
 import org.cloudbus.cloudsim.power.PowerVm;
-import org.cloudbus.cloudsim.power.PowerVmAllocationPolicyMigrationStaticThreshold;
 import org.cloudbus.cloudsim.power.models.PowerModel;
 import org.cloudbus.cloudsim.power.models.PowerModelLinear;
-import org.cloudbus.cloudsim.power.models.PowerModelSpecPowerHpProLiantMl110G3PentiumD930;
-import org.cloudbus.cloudsim.selectionPolicies.SelectionPolicyMinimumUtilization;
 import org.example.helper.Constants;
 import org.example.helper.Helper;
 import org.example.kubernetes_broker.PowerDatacenterCustom;
-import org.example.kubernetes_broker.VmAllocationPolicySimpleCustom;
 import org.example.metrics.SimulationMetrics;
 import org.cloudbus.cloudsim.*;
 import org.cloudbus.cloudsim.core.CloudSim;
@@ -262,7 +257,7 @@ public class Pause_Example_Single_Broker_Power {
 		PowerDatacenter datacenter = null;
 		try {
 			//datacenter = new Datacenter(name, characteristics, new VmAllocationPolicySimple(hostList), storageList, 2000);
-			datacenter = new PowerDatacenterCustom(name, characteristics, new VmAllocationPolicySimpleCustom(hostList), storageList, 500);
+			datacenter = new PowerDatacenterCustom(name, characteristics, new VmAllocationPolicySimple(hostList), storageList, 500);
 			datacenter.setDisableMigrations(true);
 		} catch (Exception e) {
 			e.printStackTrace();

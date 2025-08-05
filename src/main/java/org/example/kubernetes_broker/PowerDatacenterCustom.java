@@ -2,14 +2,12 @@ package org.example.kubernetes_broker;
 
 import org.cloudbus.cloudsim.*;
 import org.cloudbus.cloudsim.container.core.PowerContainer;
-import org.cloudbus.cloudsim.core.CloudActionTags;
-import org.cloudbus.cloudsim.core.CloudSim;
-import org.cloudbus.cloudsim.core.GuestEntity;
-import org.cloudbus.cloudsim.core.HostEntity;
+import org.cloudbus.cloudsim.core.*;
 import org.cloudbus.cloudsim.core.predicates.PredicateType;
 import org.cloudbus.cloudsim.power.PowerDatacenter;
 import org.cloudbus.cloudsim.power.PowerHost;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class PowerDatacenterCustom extends PowerDatacenter {
@@ -41,16 +39,28 @@ public class PowerDatacenterCustom extends PowerDatacenter {
         }
         double currentTime = CloudSim.clock();
 
-        //Bin efficiency prototype.
+        //Bin efficiency prototype. Only addition to updateCloudletProcessing thus far!
+        //...could probably make this into it's own function and then just call "super.updateCloudletProcessing".
         for (HostEntity host : getVmAllocationPolicy().getHostList()) {
             if(host instanceof PowerHost hostPower) {
+                if (hostPower.getUtilizationOfCpu() <= 0.0) {
+                    Log.printlnConcat("Skipping over " + hostPower.getId() + " due to no CPU utilization");
+                    continue;
+                }
+
                 double hostUtil = hostPower.getUtilizationOfCpu(); // value between 0 and 1
                 totalUsedMips += hostPower.getUtilizationMips();
                 totalCapacity += hostPower.getTotalMips();
             }
-            double packingEfficiency = totalUsedMips / totalCapacity * 100;
-            Log.printlnConcat(CloudSim.clock() + ": We're getting a power efficiency of " + packingEfficiency +"%");
         }
+        double packingEfficiency = totalCapacity > 0
+                ? (totalUsedMips / totalCapacity) * 100
+                : 0;
+
+        Log.printlnConcat(
+                CloudSim.clock() + ": We're getting a bin-packing efficiency of "
+                        + String.format("%.2f", packingEfficiency) + "%"
+        );
 
         // if some time passed since last processing
         if (currentTime > getLastProcessTime()) {
@@ -174,13 +184,25 @@ public class PowerDatacenterCustom extends PowerDatacenter {
 
         /** Remove completed VMs **/
 //         NOPE - This custom PowerDatacentre removes the deallocation functionality - for now.
-//        for (PowerHost host : this.<PowerHost> getHostList()) {
-//            for (GuestEntity vm : host.getCompletedVms()) {
-//                getVmAllocationPolicy().deallocateHostForGuest(vm);
-//                getVmList().remove(vm);
-//                Log.println("VM #" + vm.getId() + " has been deallocated from host #" + host.getId());
-//            }
-//        }
+        for (PowerHost host : this.<PowerHost>getHostList()) {
+            for (GuestEntity guest : new ArrayList<GuestEntity>(host.getGuestList())) {
+                if (guest.isInMigration()) continue;
+
+                if (guest instanceof Vm vm) {
+                    CloudletScheduler scheduler = vm.getCloudletScheduler();
+                    boolean hasActiveCloudlets =
+                            !scheduler.getCloudletExecList().isEmpty() ||
+                                    !scheduler.getCloudletWaitingList().isEmpty() ||
+                                    !scheduler.getCloudletFinishedList().isEmpty();
+
+                    if (!hasActiveCloudlets) {
+                        Log.println(CloudSim.clock()  + ": VM #" + vm.getId() + " has been DEALLOCATED and DESTROYED from host #" + host.getId());
+                        getVmAllocationPolicy().deallocateHostForGuest(vm);
+                        getVmList().remove(vm);
+                    }
+                }
+            }
+        }
 
         Log.println();
 

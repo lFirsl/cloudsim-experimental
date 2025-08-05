@@ -24,7 +24,6 @@ import org.example.helper.Constants;
 import org.example.helper.Helper;
 import org.example.kubernetes_broker.Live_Kubernetes_Broker_Ex;
 import org.example.kubernetes_broker.PowerDatacenterCustom;
-import org.example.kubernetes_broker.VmAllocationPolicySimpleCustom;
 import org.example.metrics.SimulationMetrics;
 
 import java.text.DecimalFormat;
@@ -152,7 +151,6 @@ public class Undercrowding_Example_Power {
 					"C:\\Users\\flori\\Desktop");
 
 
-
 			broker.sendResetRequestToControlPlane();
 
 			Log.println("CloudSimExample7 finished!");
@@ -197,9 +195,8 @@ public class Undercrowding_Example_Power {
 		long storage = 1000000; //host storage
 		int bw = 10000;
 
-		PowerModel powerModelLow = new PowerModelLinear(250,30);  // 250 watts max
-		PowerModel powerModelHigh = new PowerModelLinear(500,50);  // 250 watts max
-		for(int x = 0; x < 5; x++){
+		PowerModel powerModelHigh = new PowerModelLinear(500,50);  // 500 watts max
+		for(int x = 0; x < 10; x++){
 			hostList.add(
 					new PowerHost(
 							hostId++,
@@ -211,18 +208,6 @@ public class Undercrowding_Example_Power {
 							powerModelHigh
 					)
 			); // This is our first machine
-
-			hostList.add(
-					new PowerHost(
-							hostId++,
-							new RamProvisionerSimple(ram),
-							new BwProvisionerSimple(bw),
-							storage,
-							peList2,
-							new VmSchedulerTimeShared(peList2),
-							powerModelLow
-					)
-			); // Second machine
 		}
 
 		// 5. Create a DatacenterCharacteristics object that stores the
@@ -247,7 +232,7 @@ public class Undercrowding_Example_Power {
 		PowerDatacenter datacenter = null;
 		try {
 			//datacenter = new Datacenter(name, characteristics, new VmAllocationPolicySimple(hostList), storageList, 2000);
-			datacenter = new PowerDatacenterCustom(name, characteristics, new VmAllocationPolicySimpleCustom(hostList), storageList, 500);
+			datacenter = new PowerDatacenterCustom(name, characteristics, new VmAllocationPolicySimple(hostList), storageList, 30);
 			datacenter.setDisableMigrations(true);
 		} catch (Exception e) {
 			e.printStackTrace();
