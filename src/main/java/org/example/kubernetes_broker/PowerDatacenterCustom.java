@@ -1,11 +1,12 @@
 package org.example.kubernetes_broker;
 
-import org.cloudbus.cloudsim.DatacenterCharacteristics;
-import org.cloudbus.cloudsim.Log;
-import org.cloudbus.cloudsim.Storage;
-import org.cloudbus.cloudsim.VmAllocationPolicy;
+import org.cloudbus.cloudsim.*;
+import org.cloudbus.cloudsim.container.core.PowerContainer;
+import org.cloudbus.cloudsim.core.CloudActionTags;
 import org.cloudbus.cloudsim.core.CloudSim;
 import org.cloudbus.cloudsim.core.GuestEntity;
+import org.cloudbus.cloudsim.core.HostEntity;
+import org.cloudbus.cloudsim.core.predicates.PredicateType;
 import org.cloudbus.cloudsim.power.PowerDatacenter;
 import org.cloudbus.cloudsim.power.PowerHost;
 
@@ -22,8 +23,90 @@ public class PowerDatacenterCustom extends PowerDatacenter {
      * @param schedulingInterval the scheduling interval
      * @throws Exception the exception
      */
+
+    double totalUsedMips = 0;
+    double totalCapacity = 0;
+
+
     public PowerDatacenterCustom(String name, DatacenterCharacteristics characteristics, VmAllocationPolicy vmAllocationPolicy, List<Storage> storageList, double schedulingInterval) throws Exception {
         super(name, characteristics, vmAllocationPolicy, storageList, schedulingInterval);
+    }
+
+    @Override
+    protected void updateCloudletProcessing() {
+        if (getCloudletSubmitted() == -1 || getCloudletSubmitted() == CloudSim.clock()) {
+            CloudSim.cancelAll(getId(), new PredicateType(CloudActionTags.VM_DATACENTER_EVENT));
+            schedule(getId(), getSchedulingInterval(), CloudActionTags.VM_DATACENTER_EVENT);
+            return;
+        }
+        double currentTime = CloudSim.clock();
+
+        //Bin efficiency prototype.
+        for (HostEntity host : getVmAllocationPolicy().getHostList()) {
+            if(host instanceof PowerHost hostPower) {
+                double hostUtil = hostPower.getUtilizationOfCpu(); // value between 0 and 1
+                totalUsedMips += hostPower.getUtilizationMips();
+                totalCapacity += hostPower.getTotalMips();
+            }
+            double packingEfficiency = totalUsedMips / totalCapacity * 100;
+            Log.printlnConcat(CloudSim.clock() + ": We're getting a power efficiency of " + packingEfficiency +"%");
+        }
+
+        // if some time passed since last processing
+        if (currentTime > getLastProcessTime()) {
+            Log.print(currentTime + " ");
+
+            double minTime = updateCloudetProcessingWithoutSchedulingFutureEventsForce();
+
+            if (!isDisableMigrations()) {
+                List<VmAllocationPolicy.GuestMapping> migrationMap = getVmAllocationPolicy().optimizeAllocation(
+                        getVmList());
+
+                if (migrationMap != null) {
+                    for (VmAllocationPolicy.GuestMapping migrate : migrationMap) {
+                        Vm vm = (Vm) migrate.vm();
+                        PowerHost targetHost = (PowerHost) migrate.host();
+                        PowerHost oldHost = (PowerHost) vm.getHost();
+
+                        if (oldHost == null) {
+                            Log.formatLine(
+                                    "%.2f: Migration of VM #%d to Host #%d is started",
+                                    currentTime,
+                                    vm.getId(),
+                                    targetHost.getId());
+                        } else {
+                            Log.formatLine(
+                                    "%.2f: Migration of VM #%d from Host #%d to Host #%d is started",
+                                    currentTime,
+                                    vm.getId(),
+                                    oldHost.getId(),
+                                    targetHost.getId());
+                        }
+
+                        targetHost.addMigratingInGuest(vm);
+                        incrementMigrationCount();
+
+                        /** VM migration delay = RAM / bandwidth **/
+                        // we use BW / 2 to model BW available for migration purposes, the other
+                        // half of BW is for VM communication
+                        // around 16 seconds for 1024 MB using 1 Gbit/s network
+                        send(
+                                getId(),
+                                vm.getRam() / ((double) targetHost.getBw() / (2 * 8000)),
+                                CloudActionTags.VM_MIGRATE,
+                                migrate);
+                    }
+                }
+            }
+
+            // schedules an event to the next time
+            if (minTime != Double.MAX_VALUE) {
+                CloudSim.cancelAll(getId(), new PredicateType(CloudActionTags.VM_DATACENTER_EVENT));
+                send(getId(), getSchedulingInterval(), CloudActionTags.VM_DATACENTER_EVENT);
+            }
+
+            setLastProcessTime(currentTime);
+        }
     }
 
     @Override
@@ -89,10 +172,8 @@ public class PowerDatacenterCustom extends PowerDatacenter {
 
         setPower(getPower() + timeFrameDatacenterEnergy);
 
-        checkCloudletCompletion();
-
         /** Remove completed VMs **/
-        // NOPE - This custom PowerDatacentre removes the deallocation functionality - for now.
+//         NOPE - This custom PowerDatacentre removes the deallocation functionality - for now.
 //        for (PowerHost host : this.<PowerHost> getHostList()) {
 //            for (GuestEntity vm : host.getCompletedVms()) {
 //                getVmAllocationPolicy().deallocateHostForGuest(vm);

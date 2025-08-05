@@ -159,7 +159,7 @@ public class Undercrowding_Example_Power_Container {
 			int brokerId = broker.getId();
 
 			//Fourth step: Create VMs and Cloudlets and send them to broker
-			containerList = createContainer(brokerId,20,0);
+			containerList = createContainer(brokerId,5,0);
 			cloudletList = createCloudlet(brokerId, 10, 0); // creating 10 cloudlets
 
 			broker.submitGuestList(containerList);
@@ -179,13 +179,13 @@ public class Undercrowding_Example_Power_Container {
 			printCloudletList(newList1);
 			metrics.printSummary(lastClock);
 
-			Helper.printResults(
-					datacenter0,
-					containerList,
-					lastClock,
-					"Undercrowding_Example_Power",
-					Constants.OUTPUT_CSV,
-					"C:\\Users\\flori\\Desktop");
+//			Helper.printResults(
+//					datacenter0,
+//					containerList,
+//					lastClock,
+//					"Undercrowding_Example_Power",
+//					Constants.OUTPUT_CSV,
+//					"C:\\Users\\flori\\Desktop");
 
 
 
@@ -233,9 +233,8 @@ public class Undercrowding_Example_Power_Container {
 		long storage = 1000000; //host storage
 		int bw = 10000;
 
-		PowerModel powerModelLow = new PowerModelLinear(250,30);  // 250 watts max
 		PowerModel powerModelHigh = new PowerModelLinear(500,50);  // 250 watts max
-		for(int x = 0; x < 5; x++){
+		for(int x = 0; x < 10; x++){
 			hostList.add(
 					new PowerHost(
 							hostId++,
@@ -246,19 +245,7 @@ public class Undercrowding_Example_Power_Container {
 							new VmSchedulerTimeShared(peList1),
 							powerModelHigh
 					)
-			); // This is our first machine
-
-			hostList.add(
-					new PowerHost(
-							hostId++,
-							new RamProvisionerSimple(ram),
-							new BwProvisionerSimple(bw),
-							storage,
-							peList2,
-							new VmSchedulerTimeShared(peList2),
-							powerModelLow
-					)
-			); // Second machine
+			);
 		}
 
 		// 5. Create a DatacenterCharacteristics object that stores the
