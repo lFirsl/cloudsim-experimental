@@ -199,6 +199,12 @@ public class PowerDatacenterCustom extends PowerDatacenter {
                         Log.println(CloudSim.clock()  + ": VM #" + vm.getId() + " has been DEALLOCATED and DESTROYED from host #" + host.getId());
                         getVmAllocationPolicy().deallocateHostForGuest(vm);
                         getVmList().remove(vm);
+                        int brokerId = vm.getUserId(); // This is the owning broker's ID
+                        sendNow(brokerId, CloudActionTags.VM_DESTROY_ACK, new int[]{
+                                getId(),     // Datacenter ID
+                                vm.getId(),  // VM ID
+                                CloudSimTags.TRUE
+                        });
                     }
                 }
             }

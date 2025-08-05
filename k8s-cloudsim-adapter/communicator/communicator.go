@@ -213,8 +213,8 @@ func (c *Communicator) HandleBatchPods(w http.ResponseWriter, r *http.Request) {
 	csPods := ConvertToCsPods(k8sPods)
 
 	log.Printf("Pods scheduling success - returning response")
-	for podID, pod := range csPods {
-		log.Println("Pod", podID, "assigned to node", pod.NodeID)
+	for _, pod := range csPods {
+		log.Println("Pod", pod.ID, "assigned to node", pod.NodeID)
 	}
 
 	// Step 7: Return result
@@ -255,6 +255,12 @@ func (c *Communicator) HandleDeleteCloudletAndWait(w http.ResponseWriter, r *htt
 	}
 
 	csPodsResult := ConvertToCsPods(newPods)
+	if len(csPodsResult) != 0 {
+		log.Printf("Assigning Pod %d to Node %d...", csPodsResult[0].ID, csPodsResult[0].NodeID)
+	} else {
+		log.Printf("No new pods to assign...")
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(csPodsResult); err != nil {
 		http.Error(w, "Failed to encode response: "+err.Error(), http.StatusInternalServerError)

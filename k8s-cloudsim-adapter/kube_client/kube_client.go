@@ -50,7 +50,7 @@ func (kc *KubeClient) ResetCluster() error {
 
 func (kc *KubeClient) DeletePodAndWaitForRescheduling(cloudletID int) ([]*corev1.Pod, error) {
 	podName := fmt.Sprintf("cspod-%d", cloudletID)
-	log.Printf("Deleting pod %s (cloudlet ID %d) and watching for rescheduling...", podName, cloudletID)
+	log.Printf("Deleting pod %d and watching for rescheduling...", cloudletID)
 
 	// Capture pre-deletion pod statuses
 	prevPods, err := kc.GetPods("default")

@@ -148,14 +148,23 @@ public class Live_Kubernetes_Broker_Ex extends DatacenterBrokerEX {
     @Override
     protected void submitCloudlets() {
         Log.println("Submitting all cloudlets to Control Plane in a single batch...");
+        Log.println("Syncing all nodes again first to make sure...");
+        sendAllActiveNodesToControlPlane();
+        Log.printlnConcat("Done syncing nodes. Continuing to the cloudlets batch...");
 
         // 1. Prepare payload
         String requestBody = serializeCloudletsForSubmission(getCloudletList());
-        if (requestBody == null) return;
+        if (requestBody == null){
+            Log.printlnConcat(CloudSim.clock(),": Request body is null?");
+            return;
+        };
 
         // 2. Submit to control plane
         ArrayNode scheduledPods = submitCloudletBatchToMiddleware(requestBody);
-        if (scheduledPods == null) return;
+        if (scheduledPods == null){
+            Log.printlnConcat(CloudSim.clock(),": No pods to schedule. Skipping pod response process");
+            return;
+        }
 
         // 3. Process scheduling result
         processScheduledPodsResponse(scheduledPods);
@@ -217,6 +226,8 @@ public class Live_Kubernetes_Broker_Ex extends DatacenterBrokerEX {
     }
 
     private void processScheduledPodsResponse(ArrayNode scheduledPods) {
+        Log.printlnConcat(getName(), ": Processing pods response");
+        Log.printlnConcat(getName(), ": the array looks like so: ", scheduledPods);
         for (JsonNode podNode : scheduledPods) {
             int cloudletId = podNode.get("id").asInt();
             String status = podNode.get("status").asText();
@@ -224,9 +235,11 @@ public class Live_Kubernetes_Broker_Ex extends DatacenterBrokerEX {
             Cloudlet cloudlet = pendingCloudletsForScheduling.get(cloudletId);
             if (cloudlet == null) continue;
 
+            Log.printlnConcat(CloudSim.clock() + ": For Cloudlet #" + cloudletId + " the status is " + status);
             switch (status) {
                 case "Scheduled" -> {
                     int nodeID = podNode.has("vmId") ? podNode.get("vmId").asInt() : -1;
+                    Log.printlnConcat(CloudSim.clock() + ": For Cloudlet #" + cloudletId + " scheduled at node " + nodeID);
                     String nodeName = podNode.has("nodeName") ? podNode.get("nodeName").asText() : "N/A";
                     Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Pod ", cloudletId,
                             " scheduled on Node ", nodeName, " (VM ID ", nodeID, ")");
@@ -245,7 +258,7 @@ public class Live_Kubernetes_Broker_Ex extends DatacenterBrokerEX {
                     //getCloudletReceivedList().add(cloudlet);
                 }
             }
-
+            Log.printlnConcat(getName(), ": Done processing pod response");
             pendingCloudletsForScheduling.remove(cloudletId);
         }
 
@@ -256,8 +269,9 @@ public class Live_Kubernetes_Broker_Ex extends DatacenterBrokerEX {
 
     @Override
     protected void processCloudletReturn(SimEvent ev) {
+//        sendAllActiveNodesToControlPlane();
         Cloudlet cloudlet = (Cloudlet) ev.getData();
-
+        Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": ", cloudlet.getClass().getSimpleName()," #", cloudlet.getCloudletId(), " return received");
         updateMiddleware(cloudlet);
 
         if (getLifeLength() <= 0) {
@@ -265,7 +279,6 @@ public class Live_Kubernetes_Broker_Ex extends DatacenterBrokerEX {
             super.processCloudletReturn(ev);
         } else {
             getCloudletReceivedList().add(cloudlet);
-            Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": ", cloudlet.getClass().getSimpleName()," #", cloudlet.getCloudletId(), " return received");
             cloudletsSubmitted--;
         }
     }
