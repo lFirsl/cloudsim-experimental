@@ -229,16 +229,21 @@ public class Live_Kubernetes_Broker_Ex extends DatacenterBrokerEX {
         Log.printlnConcat(getName(), ": Processing pods response");
         Log.printlnConcat(getName(), ": the array looks like so: ", scheduledPods);
         for (JsonNode podNode : scheduledPods) {
+            Log.printlnConcat(getName(), ": Entering scheduledPods");
             int cloudletId = podNode.get("id").asInt();
             String status = podNode.get("status").asText();
+            int nodeID = podNode.has("vmId") ? podNode.get("vmId").asInt() : -1;
+
 
             Cloudlet cloudlet = pendingCloudletsForScheduling.get(cloudletId);
-            if (cloudlet == null) continue;
+            if (cloudlet == null){
+                Log.printlnConcat(getName(), ": Pod ",cloudletId, " not found in Pending Cloudlets for scheduling. It was supposed to be in Pod/VM ",nodeID);
+                continue;
+            };
 
             Log.printlnConcat(CloudSim.clock() + ": For Cloudlet #" + cloudletId + " the status is " + status);
             switch (status) {
                 case "Scheduled" -> {
-                    int nodeID = podNode.has("vmId") ? podNode.get("vmId").asInt() : -1;
                     Log.printlnConcat(CloudSim.clock() + ": For Cloudlet #" + cloudletId + " scheduled at node " + nodeID);
                     String nodeName = podNode.has("nodeName") ? podNode.get("nodeName").asText() : "N/A";
                     Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Pod ", cloudletId,
