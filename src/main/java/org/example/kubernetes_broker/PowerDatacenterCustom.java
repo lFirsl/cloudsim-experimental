@@ -32,6 +32,7 @@ public class PowerDatacenterCustom extends PowerDatacenter {
 
     @Override
     protected void updateCloudletProcessing() {
+        Log.printlnConcat(CloudSim.clock(), ": Proceeding with updateCloudletProcessing within Datacenter.");
         if (getCloudletSubmitted() == -1 || getCloudletSubmitted() == CloudSim.clock()) {
             CloudSim.cancelAll(getId(), new PredicateType(CloudActionTags.VM_DATACENTER_EVENT));
             schedule(getId(), getSchedulingInterval(), CloudActionTags.VM_DATACENTER_EVENT);
@@ -183,7 +184,6 @@ public class PowerDatacenterCustom extends PowerDatacenter {
         setPower(getPower() + timeFrameDatacenterEnergy);
 
         /** Remove completed VMs **/
-//         NOPE - This custom PowerDatacentre removes the deallocation functionality - for now.
         for (PowerHost host : this.<PowerHost>getHostList()) {
             for (GuestEntity guest : new ArrayList<GuestEntity>(host.getGuestList())) {
                 if (guest.isInMigration()) continue;
@@ -193,7 +193,8 @@ public class PowerDatacenterCustom extends PowerDatacenter {
                     boolean hasActiveCloudlets =
                             !scheduler.getCloudletExecList().isEmpty() ||
                                     !scheduler.getCloudletWaitingList().isEmpty() ||
-                                    !scheduler.getCloudletFinishedList().isEmpty();
+                                    !scheduler.getCloudletFinishedList().isEmpty() ||
+                                    !scheduler.getCloudletPausedList().isEmpty();
 
                     if (!hasActiveCloudlets) {
                         Log.println(CloudSim.clock()  + ": VM #" + vm.getId() + " has been DEALLOCATED and DESTROYED from host #" + host.getId());

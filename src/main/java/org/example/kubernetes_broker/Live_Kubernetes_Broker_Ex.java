@@ -228,6 +228,10 @@ public class Live_Kubernetes_Broker_Ex extends DatacenterBrokerEX {
     private void processScheduledPodsResponse(ArrayNode scheduledPods) {
         Log.printlnConcat(getName(), ": Processing pods response");
         Log.printlnConcat(getName(), ": the array looks like so: ", scheduledPods);
+        Log.printlnConcat(getName(), ": And the pendingCloudletsForScheduling array looks like so");
+        for(int key : pendingCloudletsForScheduling.keySet()){
+            Log.printlnConcat(getName(), ": Pending Cloudlet ", pendingCloudletsForScheduling.get(key).getCloudletId());
+        }
         for (JsonNode podNode : scheduledPods) {
             Log.printlnConcat(getName(), ": Entering scheduledPods");
             int cloudletId = podNode.get("id").asInt();
@@ -248,26 +252,27 @@ public class Live_Kubernetes_Broker_Ex extends DatacenterBrokerEX {
                     String nodeName = podNode.has("nodeName") ? podNode.get("nodeName").asText() : "N/A";
                     Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Pod ", cloudletId,
                             " scheduled on Node ", nodeName, " (VM ID ", nodeID, ")");
+                    getCloudletList().add(cloudlet);
                     if (nodeID != -1) {
                         submitCloudletToVmInCloudSim(cloudlet, nodeID);
                     } else {
                         cloudlet.setCloudletStatus(Cloudlet.CloudletStatus.FAILED);
                         getCloudletReceivedList().add(cloudlet);
                     }
+                    pendingCloudletsForScheduling.remove(cloudletId);
                 }
                 case "Unschedulable", "Unknown" -> {
                     Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Pod ", cloudletId, " is unschedulable or unknown.");
-                    getCloudletList().remove(cloudlet);
+                    //getCloudletList().remove(cloudlet);
                     pendingCloudlets.put(cloudletId, cloudlet);
                     //cloudlet.setCloudletStatus(Cloudlet.CloudletStatus.FAILED);
-                    //getCloudletReceivedList().add(cloudlet);
+                    getCloudletReceivedList().add(cloudlet);
                 }
             }
             Log.printlnConcat(getName(), ": Done processing pod response");
-            pendingCloudletsForScheduling.remove(cloudletId);
         }
 
-        Log.println("Finished scheduling batch. Submitting to CloudSim.");
+        Log.println(CloudSim.clock() + "Finished scheduling batch. Submitting to CloudSim.");
         super.submitCloudlets();  // If still needed
         Log.println("CloudSim finished scheduling batch.");
     }
@@ -292,13 +297,18 @@ public class Live_Kubernetes_Broker_Ex extends DatacenterBrokerEX {
         Log.printlnConcat("Deleting cloudlet ", cloudlet.getCloudletId(), " from the control panel.");
         String jsonPayload = serializeSingleCloudletForSubmission(cloudlet);
         ArrayNode newCloudlets = deleteCloudletAndWait(jsonPayload);
+
         if (newCloudlets == null || newCloudlets.isEmpty()) {
             Log.println("No new cloudlets to submit.");
         }
         else {
-            Cloudlet newcloudlet = pendingCloudlets.get(newCloudlets.get(0).get("id").asInt());
-            getCloudletList().add(newcloudlet);
-            Log.printlnConcat("New cloudlet to submit: ", newcloudlet.getCloudletId(), ". Proceeding...");
+            for (JsonNode cloudletNode : newCloudlets) {
+                Cloudlet newcloudlet = pendingCloudlets.get(cloudletNode.get("id").asInt());
+//                pendingCloudletsForScheduling.put(newcloudlet.getCloudletId(), newcloudlet);
+                Log.printlnConcat(CloudSim.clock(), "Cloudlet ", newcloudlet.getCloudletId(), " added to pending cloudlets for scheduling.");
+                getCloudletList().add(newcloudlet);
+                Log.printlnConcat("New cloudlet to submit: ", newcloudlet.getCloudletId(), ". Proceeding...");
+            }
             processScheduledPodsResponse(newCloudlets);
         }
 
@@ -349,7 +359,7 @@ public class Live_Kubernetes_Broker_Ex extends DatacenterBrokerEX {
             return;
         }
 
-        cloudlet.setGuestId(targetVm.getId());
+        bindCloudletToVm(cloudlet.getCloudletId(), vmId);
     }
 
 

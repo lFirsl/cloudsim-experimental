@@ -62,7 +62,7 @@ public class Pause_Example_Single_Broker_Power {
 		Vm[] vm = new Vm[vms];
 
 		for(int i=0;i<vms;i++){
-			vm[i] = new PowerVm(idShift + i, userId, mips, pesNumber, ram, bw, size,0, vmm, new CloudletSchedulerTimeShared(),200);
+			vm[i] = new PowerVm(idShift + i, userId, mips, pesNumber, ram, bw, size,0, vmm, new CloudletSchedulerTimeShared(),500);
 			list.add(vm[i]);
 		}
 
@@ -121,9 +121,16 @@ public class Pause_Example_Single_Broker_Power {
 			broker = new Live_Kubernetes_Broker_Ex("Broker_0",-1);
 			int brokerId = broker.getId();
 
+			List<Cloudlet> cloudletListTemp = new ArrayList<Cloudlet>();
+
+			List<Vm> vmlistTemp = new ArrayList<Vm>();
+
 			//Fourth step: Create VMs and Cloudlets and send them to broker
 			vmlist = createVM(brokerId, 5, 0); //creating 5 vms
 			cloudletList = createCloudlet(brokerId, 20, 0); // creating 10 cloudlets
+
+			cloudletListTemp.addAll(cloudletList);
+			vmlistTemp.addAll(vmlist);
 
 			broker.submitGuestList(vmlist);
 			broker.submitCloudletList(cloudletList);
@@ -133,8 +140,11 @@ public class Pause_Example_Single_Broker_Power {
 			vmlist = createVM(brokerId, 5, 100); //creating 5 vms
 			cloudletList = createCloudlet(brokerId, 15, 100); // creating 10 cloudlets
 
+			cloudletListTemp.addAll(cloudletList);
+			vmlistTemp.addAll(vmlist);
+
 			broker.createVmsAfter(vmlist,200);
-			broker.submitCloudletList(cloudletList,200);
+			broker.submitCloudletList(cloudletList,200.1);
 
 			Log.println("And now it's resumed!");
 			CloudSim.resumeSimulation();
@@ -155,7 +165,7 @@ public class Pause_Example_Single_Broker_Power {
 
 			Helper.printResults(
 					datacenter0,
-					vmlist,
+					vmlistTemp,
 					lastClock,
 					"Pause_Example_Single_Broker_Power",
 					Constants.OUTPUT_CSV,
@@ -163,7 +173,7 @@ public class Pause_Example_Single_Broker_Power {
 
 
 
-			broker.sendResetRequestToControlPlane();
+//			broker.sendResetRequestToControlPlane();
 
 			Log.println("CloudSimExample7 finished!");
 		}
