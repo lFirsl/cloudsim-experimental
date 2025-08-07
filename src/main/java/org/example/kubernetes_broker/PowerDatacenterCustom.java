@@ -6,6 +6,7 @@ import org.cloudbus.cloudsim.core.*;
 import org.cloudbus.cloudsim.core.predicates.PredicateType;
 import org.cloudbus.cloudsim.power.PowerDatacenter;
 import org.cloudbus.cloudsim.power.PowerHost;
+import org.cloudbus.cloudsim.power.PowerVm;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -184,35 +185,66 @@ public class PowerDatacenterCustom extends PowerDatacenter {
 
 //        /** Remove completed VMs **/
 ////         NOPE - This custom PowerDatacentre removes the deallocation functionality - for now.
-//        for (PowerHost host : this.<PowerHost>getHostList()) {
-//            for (GuestEntity guest : new ArrayList<GuestEntity>(host.getGuestList())) {
-//                if (guest.isInMigration()) continue;
-//
-//                if (guest instanceof Vm vm) {
-//                    CloudletScheduler scheduler = vm.getCloudletScheduler();
-//                    boolean hasActiveCloudlets =
-//                            !scheduler.getCloudletExecList().isEmpty() ||
-//                                    !scheduler.getCloudletWaitingList().isEmpty() ||
-//                                    !scheduler.getCloudletFinishedList().isEmpty();
-//
-//                    if (!hasActiveCloudlets) {
-//                        Log.println(CloudSim.clock()  + ": VM #" + vm.getId() + " has been DEALLOCATED and DESTROYED from host #" + host.getId());
-//                        getVmAllocationPolicy().deallocateHostForGuest(vm);
-//                        getVmList().remove(vm);
-//                        int brokerId = vm.getUserId(); // This is the owning broker's ID
-//                        sendNow(brokerId, CloudActionTags.VM_DESTROY_ACK, new int[]{
-//                                getId(),     // Datacenter ID
-//                                vm.getId(),  // VM ID
-//                                CloudSimTags.TRUE
-//                        });
-//                    }
-//                }
-//            }
-//        }
+        for (PowerHost host : this.<PowerHost>getHostList()) {
+            for (GuestEntity guest : new ArrayList<GuestEntity>(host.getGuestList())) {
+                if (guest.isInMigration()) continue;
+
+                if (guest instanceof Vm vm) {
+                    CloudletScheduler scheduler = vm.getCloudletScheduler();
+                    boolean hasActiveCloudlets =
+                            !scheduler.getCloudletExecList().isEmpty() ||
+                                    !scheduler.getCloudletWaitingList().isEmpty() ||
+                                    !scheduler.getCloudletFinishedList().isEmpty();
+
+                    if (!hasActiveCloudlets) {
+                        send(this.getId(),1,CloudActionTags.BLANK,vm);
+                    }
+                }
+            }
+        }
+
+
 
         Log.println();
 
         setLastProcessTime(currentTime);
         return minTime;
+    }
+    @Override
+    public void processEvent(SimEvent ev) {
+        int srcId = -1;
+        CloudSimTags tag = ev.getTag();
+
+        // Resource characteristics inquiry
+        if (tag == CloudActionTags.BLANK) {
+            scheduleVMDestruction(ev);
+            return;
+        }
+        super.processEvent(ev);
+    }
+
+    private void scheduleVMDestruction(SimEvent ev){
+        Vm vm = (Vm) ev.getData();
+        CloudletScheduler scheduler = vm.getCloudletScheduler();
+        boolean hasActiveCloudlets =
+                !scheduler.getCloudletExecList().isEmpty() ||
+                        !scheduler.getCloudletWaitingList().isEmpty() ||
+                        !scheduler.getCloudletFinishedList().isEmpty();
+
+        if(!hasActiveCloudlets){
+            Log.println(CloudSim.clock()  + ": VM #" + vm.getId() + " has been DEALLOCATED and DESTROYED from host");
+            getVmAllocationPolicy().deallocateHostForGuest(vm);
+            getVmList().remove(vm);
+            int brokerId = vm.getUserId(); // This is the owning broker's ID
+            sendNow(brokerId, CloudActionTags.VM_DESTROY_ACK, new int[]{
+                    getId(),     // Datacenter ID
+                    vm.getId(),  // VM ID
+                    CloudSimTags.TRUE
+            });
+        }
+        else {
+            Log.println(CloudSim.clock()  + ": VM #" + vm.getId() + " was PREVENTED from being destroyed.");
+        }
+
     }
 }
