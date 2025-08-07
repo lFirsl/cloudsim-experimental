@@ -32,7 +32,6 @@ public class PowerDatacenterCustom extends PowerDatacenter {
 
     @Override
     protected void updateCloudletProcessing() {
-        Log.printlnConcat(CloudSim.clock(), ": Proceeding with updateCloudletProcessing within Datacenter.");
         if (getCloudletSubmitted() == -1 || getCloudletSubmitted() == CloudSim.clock()) {
             CloudSim.cancelAll(getId(), new PredicateType(CloudActionTags.VM_DATACENTER_EVENT));
             schedule(getId(), getSchedulingInterval(), CloudActionTags.VM_DATACENTER_EVENT);
@@ -183,33 +182,33 @@ public class PowerDatacenterCustom extends PowerDatacenter {
 
         setPower(getPower() + timeFrameDatacenterEnergy);
 
-        /** Remove completed VMs **/
-        for (PowerHost host : this.<PowerHost>getHostList()) {
-            for (GuestEntity guest : new ArrayList<GuestEntity>(host.getGuestList())) {
-                if (guest.isInMigration()) continue;
-
-                if (guest instanceof Vm vm) {
-                    CloudletScheduler scheduler = vm.getCloudletScheduler();
-                    boolean hasActiveCloudlets =
-                            !scheduler.getCloudletExecList().isEmpty() ||
-                                    !scheduler.getCloudletWaitingList().isEmpty() ||
-                                    !scheduler.getCloudletFinishedList().isEmpty() ||
-                                    !scheduler.getCloudletPausedList().isEmpty();
-
-                    if (!hasActiveCloudlets) {
-                        Log.println(CloudSim.clock()  + ": VM #" + vm.getId() + " has been DEALLOCATED and DESTROYED from host #" + host.getId());
-                        getVmAllocationPolicy().deallocateHostForGuest(vm);
-                        getVmList().remove(vm);
-                        int brokerId = vm.getUserId(); // This is the owning broker's ID
-                        sendNow(brokerId, CloudActionTags.VM_DESTROY_ACK, new int[]{
-                                getId(),     // Datacenter ID
-                                vm.getId(),  // VM ID
-                                CloudSimTags.TRUE
-                        });
-                    }
-                }
-            }
-        }
+//        /** Remove completed VMs **/
+////         NOPE - This custom PowerDatacentre removes the deallocation functionality - for now.
+//        for (PowerHost host : this.<PowerHost>getHostList()) {
+//            for (GuestEntity guest : new ArrayList<GuestEntity>(host.getGuestList())) {
+//                if (guest.isInMigration()) continue;
+//
+//                if (guest instanceof Vm vm) {
+//                    CloudletScheduler scheduler = vm.getCloudletScheduler();
+//                    boolean hasActiveCloudlets =
+//                            !scheduler.getCloudletExecList().isEmpty() ||
+//                                    !scheduler.getCloudletWaitingList().isEmpty() ||
+//                                    !scheduler.getCloudletFinishedList().isEmpty();
+//
+//                    if (!hasActiveCloudlets) {
+//                        Log.println(CloudSim.clock()  + ": VM #" + vm.getId() + " has been DEALLOCATED and DESTROYED from host #" + host.getId());
+//                        getVmAllocationPolicy().deallocateHostForGuest(vm);
+//                        getVmList().remove(vm);
+//                        int brokerId = vm.getUserId(); // This is the owning broker's ID
+//                        sendNow(brokerId, CloudActionTags.VM_DESTROY_ACK, new int[]{
+//                                getId(),     // Datacenter ID
+//                                vm.getId(),  // VM ID
+//                                CloudSimTags.TRUE
+//                        });
+//                    }
+//                }
+//            }
+//        }
 
         Log.println();
 

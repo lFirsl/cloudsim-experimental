@@ -160,6 +160,9 @@ public class Pause_Example_Single_Broker_Power {
 			CloudSim.stopSimulation();
 			metrics.stopWallClock();
 
+			if(newList1.size() < 35){
+				Log.printConcat("We only got ", newList1.size(), " whereas we were supposed to get 35!");
+			}
 			printCloudletList(newList1);
 			metrics.printSummary(lastClock);
 
