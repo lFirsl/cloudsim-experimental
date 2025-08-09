@@ -111,7 +111,7 @@ public class Undercrowding_Example_Power {
 
 			// Initialize the CloudSim library
 			CloudSim.init(num_user, calendar, trace_flag);
-			SimulationMetrics metrics = new SimulationMetrics(null);
+			SimulationMetrics metrics = new SimulationMetrics(null,null);
 
 			// Second step: Create Datacenters
 			//Datacenters are the resource providers in CloudSim. We need at list one of them to run a CloudSim simulation

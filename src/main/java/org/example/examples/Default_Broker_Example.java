@@ -29,7 +29,7 @@ public class Default_Broker_Example {
     /** The cloudlet list. */
     private static List<Cloudlet> cloudletList;
     /** The vmlist. */
-    private static List<VirtualEntity> vmlist;
+    private static List<Vm> vmlist;
     /** the containerlist */
     private static List<GuestEntity> containerlist;
 
@@ -89,7 +89,7 @@ public class Default_Broker_Example {
                     vmPeList.add(new Pe(j, new PeProvisionerSimple(VM_MIPS_PER_PE)));
                 }
 
-                VirtualEntity vm = new Vm(
+                Vm vm = new Vm(
                         vmID++, broker.getId(),
                         VM_MIPS_PER_PE * VM_CORES, // Total VM MIPS
                         VM_CORES,
@@ -173,7 +173,7 @@ public class Default_Broker_Example {
             broker.submitCloudletList(cloudletList);
 
             // Starts the simulation
-            SimulationMetrics metrics = new SimulationMetrics(null);
+            SimulationMetrics metrics = new SimulationMetrics(null,vmlist);
             metrics.startWallClock();
             CloudSim.startSimulation();
 

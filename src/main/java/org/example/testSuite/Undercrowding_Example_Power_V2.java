@@ -8,23 +8,23 @@
  */
 
 
-package org.example.examples;
+package org.example.testSuite;
 
+import org.cloudbus.cloudsim.*;
+import org.cloudbus.cloudsim.core.CloudSim;
 import org.cloudbus.cloudsim.power.PowerDatacenter;
 import org.cloudbus.cloudsim.power.PowerHost;
 import org.cloudbus.cloudsim.power.PowerVm;
 import org.cloudbus.cloudsim.power.models.PowerModel;
 import org.cloudbus.cloudsim.power.models.PowerModelLinear;
-import org.example.helper.Constants;
-import org.example.helper.Helper;
-import org.example.kubernetes_broker.PowerDatacenterCustom;
-import org.example.metrics.SimulationMetrics;
-import org.cloudbus.cloudsim.*;
-import org.cloudbus.cloudsim.core.CloudSim;
 import org.cloudbus.cloudsim.provisioners.BwProvisionerSimple;
 import org.cloudbus.cloudsim.provisioners.PeProvisionerSimple;
 import org.cloudbus.cloudsim.provisioners.RamProvisionerSimple;
+import org.example.helper.Constants;
+import org.example.helper.Helper;
 import org.example.kubernetes_broker.Live_Kubernetes_Broker_Ex;
+import org.example.kubernetes_broker.PowerDatacenterCustom;
+import org.example.metrics.SimulationMetrics;
 
 import java.text.DecimalFormat;
 import java.util.ArrayList;
@@ -37,7 +37,7 @@ import java.util.List;
  * and create simulation entities (a DatacenterBroker in this example)
  * dynamically.
  */
-public class Pause_Example_Single_Broker_Power {
+public class Undercrowding_Example_Power_V2 {
 	public static Live_Kubernetes_Broker_Ex broker;
 
 	/** The cloudlet list. */
@@ -55,14 +55,14 @@ public class Pause_Example_Single_Broker_Power {
 		int ram = 512; //vm memory (MB)
 		int mips = 250;
 		long bw = 1000;
-		int pesNumber = 1; //number of cpus
+		int pesNumber = 10; //number of cpus
 		String vmm = "Xen"; //VMM name
 
 		//create VMs
 		Vm[] vm = new Vm[vms];
 
 		for(int i=0;i<vms;i++){
-			vm[i] = new PowerVm(idShift + i, userId, mips, pesNumber, ram, bw, size,0, vmm, new CloudletSchedulerTimeShared(),500);
+			vm[i] = new PowerVm(idShift + i, userId, mips, pesNumber, ram, bw, size,0, vmm, new CloudletSchedulerTimeShared(),200);
 			list.add(vm[i]);
 		}
 
@@ -79,7 +79,8 @@ public class Pause_Example_Single_Broker_Power {
 		long fileSize = 300;
 		long outputSize = 300;
 		int pesNumber = 1;
-		UtilizationModel utilizationModel = new UtilizationModelStochastic(42);
+		//UtilizationModel utilizationModel = new UtilizationModelStochastic(42);
+		UtilizationModel utilizationModel = new UtilizationModelFull();
 
 		Cloudlet[] cloudlet = new Cloudlet[cloudlets];
 
@@ -111,45 +112,24 @@ public class Pause_Example_Single_Broker_Power {
 
 			// Initialize the CloudSim library
 			CloudSim.init(num_user, calendar, trace_flag);
-			SimulationMetrics metrics = new SimulationMetrics(null);
 
 			// Second step: Create Datacenters
 			//Datacenters are the resource providers in CloudSim. We need at list one of them to run a CloudSim simulation
-			PowerDatacenter datacenter0 = createDatacenter("Datacenter_0");
+			PowerDatacenterCustom datacenter0 = createDatacenter("Datacenter_0");
 
 			//Third step: Create Broker
 			broker = new Live_Kubernetes_Broker_Ex("Broker_0",-1);
 			int brokerId = broker.getId();
 
-			List<Cloudlet> cloudletListTemp = new ArrayList<Cloudlet>();
-
-			List<Vm> vmlistTemp = new ArrayList<Vm>();
-
 			//Fourth step: Create VMs and Cloudlets and send them to broker
-			vmlist = createVM(brokerId, 5, 0); //creating 5 vms
-			cloudletList = createCloudlet(brokerId, 20, 0); // creating 10 cloudlets
-
-			cloudletListTemp.addAll(cloudletList);
-			vmlistTemp.addAll(vmlist);
+			vmlist = createVM(brokerId, 10, 0); //creating 10 vms
+			cloudletList = createCloudlet(brokerId, 10, 0); // creating 10 cloudlets
 
 			broker.submitGuestList(vmlist);
 			broker.submitCloudletList(cloudletList);
 
-			// A thread that will create a new broker at 200 clock time
-			//Create VMs and Cloudlets and send them to broker
-			vmlist = createVM(brokerId, 5, 100); //creating 5 vms
-			cloudletList = createCloudlet(brokerId, 15, 100); // creating 10 cloudlets
-
-			cloudletListTemp.addAll(cloudletList);
-			vmlistTemp.addAll(vmlist);
-
-			broker.createVmsAfter(vmlist,200);
-			broker.submitCloudletList(cloudletList,200.1);
-
-			Log.println("And now it's resumed!");
-			CloudSim.resumeSimulation();
-
 			// Fifth step: Starts the simulation
+			SimulationMetrics metrics = new SimulationMetrics(datacenter0,vmlist);
 			metrics.startWallClock();
 			double lastClock = CloudSim.startSimulation();
 
@@ -160,23 +140,19 @@ public class Pause_Example_Single_Broker_Power {
 			CloudSim.stopSimulation();
 			metrics.stopWallClock();
 
-			if(newList1.size() < 35){
-				Log.printConcat("We only got ", newList1.size(), " whereas we were supposed to get 35!");
-			}
 			printCloudletList(newList1);
 			metrics.printSummary(lastClock);
 
 			Helper.printResults(
 					datacenter0,
-					vmlistTemp,
+					vmlist,
 					lastClock,
 					"Pause_Example_Single_Broker_Power",
 					Constants.OUTPUT_CSV,
 					"C:\\Users\\flori\\Desktop");
 
 
-
-//			broker.sendResetRequestToControlPlane();
+			broker.sendResetRequestToControlPlane();
 
 			Log.println("CloudSimExample7 finished!");
 		}
@@ -187,7 +163,7 @@ public class Pause_Example_Single_Broker_Power {
 		}
 	}
 
-	private static PowerDatacenter createDatacenter(String name){
+	private static PowerDatacenterCustom createDatacenter(String name){
 
 		// Here are the steps needed to create a PowerDatacenter:
 		// 1. We need to create a list to store one or more
@@ -203,16 +179,16 @@ public class Pause_Example_Single_Broker_Power {
 
 		// 3. Create PEs and add these into the list.
 		//for a quad-core machine, a list of 4 PEs is required:
-		peList1.add(new Pe(0, new PeProvisionerSimple(mips))); // need to store Pe id and MIPS Rating
-		peList1.add(new Pe(1, new PeProvisionerSimple(mips)));
-		peList1.add(new Pe(2, new PeProvisionerSimple(mips)));
-		peList1.add(new Pe(3, new PeProvisionerSimple(mips)));
+		for(int i = 0; i< 10; i++){
+			peList1.add(new Pe(i, new PeProvisionerSimple(mips))); // need to store Pe id and MIPS Rating
+		}
 
 		//Another list, for a dual-core machine
 		List<Pe> peList2 = new ArrayList<>();
 
-		peList2.add(new Pe(0, new PeProvisionerSimple(mips)));
-		peList2.add(new Pe(1, new PeProvisionerSimple(mips)));
+		for(int i = 0; i< 10; i++){
+			peList2.add(new Pe(i, new PeProvisionerSimple(mips))); // need to store Pe id and MIPS Rating
+		}
 
 		//4. Create Hosts with its id and list of PEs and add them to the list of machines
 		int hostId=0;
@@ -220,33 +196,20 @@ public class Pause_Example_Single_Broker_Power {
 		long storage = 1000000; //host storage
 		int bw = 10000;
 
-		PowerModel powerModelLow = new PowerModelLinear(250,30);  // 250 watts max
-		PowerModel powerModelHigh = new PowerModelLinear(500,50);  // 250 watts max
-		hostList.add(
-				new PowerHost(
-						hostId,
-						new RamProvisionerSimple(ram),
-						new BwProvisionerSimple(bw),
-						storage,
-						peList1,
-						new VmSchedulerTimeShared(peList1),
-						powerModelHigh
-				)
-		); // This is our first machine
-
-		hostId++;
-
-		hostList.add(
-				new PowerHost(
-						hostId,
-						new RamProvisionerSimple(ram),
-						new BwProvisionerSimple(bw),
-						storage,
-						peList2,
-						new VmSchedulerTimeShared(peList2),
-						powerModelLow
-				)
-		); // Second machine
+		PowerModel powerModelHigh = new PowerModelLinear(500,50);  // 500 watts max
+		for(int x = 0; x < 10; x++){
+			hostList.add(
+					new PowerHost(
+							hostId++,
+							new RamProvisionerSimple(ram),
+							new BwProvisionerSimple(bw),
+							storage,
+							peList1,
+							new VmSchedulerTimeShared(peList1),
+							powerModelHigh
+					)
+			); // This is our first machine
+		}
 
 		// 5. Create a DatacenterCharacteristics object that stores the
 		//    properties of a data center: architecture, OS, list of
@@ -267,10 +230,10 @@ public class Pause_Example_Single_Broker_Power {
 
 
 		// 6. Finally, we need to create a PowerDatacenter object.
-		PowerDatacenter datacenter = null;
+		PowerDatacenterCustom datacenter = null;
 		try {
 			//datacenter = new Datacenter(name, characteristics, new VmAllocationPolicySimple(hostList), storageList, 2000);
-			datacenter = new PowerDatacenterCustom(name, characteristics, new VmAllocationPolicySimple(hostList), storageList, 500);
+			datacenter = new PowerDatacenterCustom(name, characteristics, new VmAllocationPolicySimple(hostList), storageList, 50);
 			datacenter.setDisableMigrations(true);
 		} catch (Exception e) {
 			e.printStackTrace();

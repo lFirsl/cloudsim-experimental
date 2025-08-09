@@ -7,9 +7,12 @@ import org.cloudbus.cloudsim.core.predicates.PredicateType;
 import org.cloudbus.cloudsim.power.PowerDatacenter;
 import org.cloudbus.cloudsim.power.PowerHost;
 import org.cloudbus.cloudsim.power.PowerVm;
+import org.example.metrics.TimeWeightedMetric;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class PowerDatacenterCustom extends PowerDatacenter {
     /**
@@ -25,10 +28,14 @@ public class PowerDatacenterCustom extends PowerDatacenter {
 
     double totalUsedMips = 0;
     double totalCapacity = 0;
+    Set<Integer> totalVmIdsEverAllocated;
+    private final TimeWeightedMetric consolidationTW = new TimeWeightedMetric();
+
 
 
     public PowerDatacenterCustom(String name, DatacenterCharacteristics characteristics, VmAllocationPolicy vmAllocationPolicy, List<Storage> storageList, double schedulingInterval) throws Exception {
         super(name, characteristics, vmAllocationPolicy, storageList, schedulingInterval);
+        totalVmIdsEverAllocated = new HashSet<Integer>();
     }
 
     @Override
@@ -42,26 +49,19 @@ public class PowerDatacenterCustom extends PowerDatacenter {
 
         //Bin efficiency prototype. Only addition to updateCloudletProcessing thus far!
         //...could probably make this into it's own function and then just call "super.updateCloudletProcessing".
+        int activeHosts = 0;
         for (HostEntity host : getVmAllocationPolicy().getHostList()) {
-            if(host instanceof PowerHost hostPower) {
-                if (hostPower.getUtilizationOfCpu() <= 0.0) {
-                    Log.printlnConcat("Skipping over " + hostPower.getId() + " due to no CPU utilization");
-                    continue;
-                }
-
-                double hostUtil = hostPower.getUtilizationOfCpu(); // value between 0 and 1
-                totalUsedMips += hostPower.getUtilizationMips();
-                totalCapacity += hostPower.getTotalMips();
-            }
+            if (!host.getGuestList().isEmpty()) activeHosts++;
         }
-        double packingEfficiency = totalCapacity > 0
-                ? (totalUsedMips / totalCapacity) * 100
-                : 0;
+
+        double consolidationRatio = (double) totalVmIdsEverAllocated.size() / activeHosts;
+
 
         Log.printlnConcat(
-                CloudSim.clock() + ": We're getting a bin-packing efficiency of "
-                        + String.format("%.2f", packingEfficiency) + "%"
+                CloudSim.clock() + ": We're getting a consolidationRatio of "
+                        + String.format("%.2f", consolidationRatio) + "."
         );
+        consolidationTW.add(CloudSim.clock(), consolidationRatio);
 
         // if some time passed since last processing
         if (currentTime > getLastProcessTime()) {
@@ -118,6 +118,17 @@ public class PowerDatacenterCustom extends PowerDatacenter {
 
             setLastProcessTime(currentTime);
         }
+    }
+
+    public double getConsolidationAverage(double time){
+        return consolidationTW.average(time);
+    }
+
+    @Override
+    protected void processVmCreate(SimEvent ev, boolean ack) {
+        GuestEntity guest = (GuestEntity) ev.getData();
+        totalVmIdsEverAllocated.add(guest.getId());
+        super.processVmCreate(ev, ack);
     }
 
     @Override
