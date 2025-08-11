@@ -1,12 +1,10 @@
 package org.example.kubernetes_broker;
 
 import org.cloudbus.cloudsim.*;
-import org.cloudbus.cloudsim.container.core.PowerContainer;
 import org.cloudbus.cloudsim.core.*;
 import org.cloudbus.cloudsim.core.predicates.PredicateType;
 import org.cloudbus.cloudsim.power.PowerDatacenter;
 import org.cloudbus.cloudsim.power.PowerHost;
-import org.cloudbus.cloudsim.power.PowerVm;
 import org.example.metrics.TimeWeightedMetric;
 
 import java.util.ArrayList;
@@ -30,12 +28,20 @@ public class PowerDatacenterCustom extends PowerDatacenter {
     double totalCapacity = 0;
     Set<Integer> totalVmIdsEverAllocated;
     private final TimeWeightedMetric consolidationTW = new TimeWeightedMetric();
+    boolean disableDeallocation;
 
 
 
     public PowerDatacenterCustom(String name, DatacenterCharacteristics characteristics, VmAllocationPolicy vmAllocationPolicy, List<Storage> storageList, double schedulingInterval) throws Exception {
         super(name, characteristics, vmAllocationPolicy, storageList, schedulingInterval);
         totalVmIdsEverAllocated = new HashSet<Integer>();
+        disableDeallocation = false;
+    }
+
+    public PowerDatacenterCustom(String name, DatacenterCharacteristics characteristics, VmAllocationPolicy vmAllocationPolicy, List<Storage> storageList, double schedulingInterval, boolean disableDeallocation) throws Exception {
+        super(name, characteristics, vmAllocationPolicy, storageList, schedulingInterval);
+        totalVmIdsEverAllocated = new HashSet<Integer>();
+        this.disableDeallocation = disableDeallocation;
     }
 
     @Override
@@ -51,7 +57,7 @@ public class PowerDatacenterCustom extends PowerDatacenter {
         //...could probably make this into it's own function and then just call "super.updateCloudletProcessing".
         int activeHosts = 0;
         for (HostEntity host : getVmAllocationPolicy().getHostList()) {
-            if (!host.getGuestList().isEmpty()) activeHosts++;
+            if (host instanceof PowerHost ph && ph.getUtilizationOfCpu() > 0) activeHosts++;
         }
 
         double consolidationRatio = (double) totalVmIdsEverAllocated.size() / activeHosts;
@@ -125,13 +131,6 @@ public class PowerDatacenterCustom extends PowerDatacenter {
     }
 
     @Override
-    protected void processVmCreate(SimEvent ev, boolean ack) {
-        GuestEntity guest = (GuestEntity) ev.getData();
-        totalVmIdsEverAllocated.add(guest.getId());
-        super.processVmCreate(ev, ack);
-    }
-
-    @Override
     protected double updateCloudetProcessingWithoutSchedulingFutureEventsForce() {
         double currentTime = CloudSim.clock();
         double minTime = Double.MAX_VALUE;
@@ -195,24 +194,26 @@ public class PowerDatacenterCustom extends PowerDatacenter {
         setPower(getPower() + timeFrameDatacenterEnergy);
 
 //        /** Remove completed VMs **/
-////         NOPE - This custom PowerDatacentre removes the deallocation functionality - for now.
-        for (PowerHost host : this.<PowerHost>getHostList()) {
-            for (GuestEntity guest : new ArrayList<GuestEntity>(host.getGuestList())) {
-                if (guest.isInMigration()) continue;
+        if(!disableDeallocation){
+            for (PowerHost host : this.<PowerHost>getHostList()) {
+                for (GuestEntity guest : new ArrayList<GuestEntity>(host.getGuestList())) {
+                    if (guest.isInMigration()) continue;
 
-                if (guest instanceof Vm vm) {
-                    CloudletScheduler scheduler = vm.getCloudletScheduler();
-                    boolean hasActiveCloudlets =
-                            !scheduler.getCloudletExecList().isEmpty() ||
-                                    !scheduler.getCloudletWaitingList().isEmpty() ||
-                                    !scheduler.getCloudletFinishedList().isEmpty();
+                    if (guest instanceof Vm vm) {
+                        CloudletScheduler scheduler = vm.getCloudletScheduler();
+                        boolean hasActiveCloudlets =
+                                !scheduler.getCloudletExecList().isEmpty() ||
+                                        !scheduler.getCloudletWaitingList().isEmpty() ||
+                                        !scheduler.getCloudletFinishedList().isEmpty();
 
-                    if (!hasActiveCloudlets) {
-                        send(this.getId(),1,CloudActionTags.BLANK,vm);
+                        if (!hasActiveCloudlets) {
+                            send(this.getId(),1,CloudActionTagsEx.VM_DELAYED_DESTROY,vm);
+                        }
                     }
                 }
             }
         }
+
 
 
 
@@ -221,13 +222,69 @@ public class PowerDatacenterCustom extends PowerDatacenter {
         setLastProcessTime(currentTime);
         return minTime;
     }
+
+    @Override
+    protected void processVmCreate(SimEvent ev, boolean ack) {
+        Vm vm = (Vm) ev.getData();
+        totalVmIdsEverAllocated.add(vm.getId());
+
+        // If VM specifies a preferred host, place it there
+        if (vm instanceof PowerVmCustom pvm) {
+            Log.println(this.getName() + ": We're trying to create a PowerVMCustom - using custom allocation logic.");
+            int targetHostId = pvm.getPreferredHostId();
+            HostEntity targetHost = (HostEntity) getHostList().get(targetHostId);
+
+            boolean result = false;
+
+            // Allocate through the allocation policy so mapping is stored
+            if (targetHost != null && getVmAllocationPolicy().getHostList().contains(targetHost)) {
+                result = getVmAllocationPolicy().allocateHostForGuest(pvm, targetHost);
+            } else {
+                // If preferred host is invalid, fall back to normal allocation
+                result = getVmAllocationPolicy().allocateHostForGuest(pvm);
+            }
+
+            if (ack) {
+                int[] data = new int[]{
+                        getId(),
+                        pvm.getId(),
+                        result ? CloudSimTags.TRUE : CloudSimTags.FALSE
+                };
+                send(pvm.getUserId(), CloudSim.getMinTimeBetweenEvents(),
+                        CloudActionTags.VM_CREATE_ACK, data);
+            }
+
+            if (result) {
+                getVmList().add(pvm);
+
+                if (pvm.isBeingInstantiated()) {
+                    pvm.setBeingInstantiated(false);
+                }
+
+                pvm.updateCloudletsProcessing(
+                        CloudSim.clock(),
+                        getVmAllocationPolicy().getHost(pvm)
+                                .getGuestScheduler()
+                                .getAllocatedMipsForGuest(pvm)
+                );
+            } else {
+                Log.printlnConcat(CloudSim.clock(), ": Datacenter.guestAllocator: Couldn't find a host for PowerVMCustom #", pvm.getId());
+            }
+            return; // Skip normal allocation
+        }
+
+        // Fallback to normal allocation for all other VMs
+        super.processVmCreate(ev, ack);
+    }
+
+
     @Override
     public void processEvent(SimEvent ev) {
         int srcId = -1;
         CloudSimTags tag = ev.getTag();
 
         // Resource characteristics inquiry
-        if (tag == CloudActionTags.BLANK) {
+        if (tag == CloudActionTagsEx.VM_DELAYED_DESTROY) {
             scheduleVMDestruction(ev);
             return;
         }
