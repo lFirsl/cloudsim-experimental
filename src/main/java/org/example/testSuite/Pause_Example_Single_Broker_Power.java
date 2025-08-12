@@ -207,11 +207,7 @@ public class Pause_Example_Single_Broker_Power {
 		peList1.add(new Pe(2, new PeProvisionerSimple(mips)));
 		peList1.add(new Pe(3, new PeProvisionerSimple(mips)));
 
-		//Another list, for a dual-core machine
-		List<Pe> peList2 = new ArrayList<>();
-
-		peList2.add(new Pe(0, new PeProvisionerSimple(mips)));
-		peList2.add(new Pe(1, new PeProvisionerSimple(mips)));
+        //Another list, for a dual-core machine
 
 		//4. Create Hosts with its id and list of PEs and add them to the list of machines
 		int hostId=0;
@@ -219,7 +215,6 @@ public class Pause_Example_Single_Broker_Power {
 		long storage = 1000000; //host storage
 		int bw = 10000;
 
-		PowerModel powerModelLow = new PowerModelLinear(250,30);  // 250 watts max
 		PowerModel powerModelHigh = new PowerModelLinear(500,50);  // 250 watts max
 		hostList.add(
 				new PowerHost(
@@ -235,17 +230,17 @@ public class Pause_Example_Single_Broker_Power {
 
 		hostId++;
 
-		hostList.add(
-				new PowerHost(
-						hostId,
-						new RamProvisionerSimple(ram),
-						new BwProvisionerSimple(bw),
-						storage,
-						peList2,
-						new VmSchedulerTimeShared(peList2),
-						powerModelLow
-				)
-		); // Second machine
+        hostList.add(
+                new PowerHost(
+                        hostId,
+                        new RamProvisionerSimple(ram),
+                        new BwProvisionerSimple(bw),
+                        storage,
+                        peList1,
+                        new VmSchedulerTimeShared(peList1),
+                        powerModelHigh
+                )
+        ); // This is our first machine
 
 		// 5. Create a DatacenterCharacteristics object that stores the
 		//    properties of a data center: architecture, OS, list of

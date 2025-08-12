@@ -76,7 +76,7 @@ public class Power_vs_Efficiency_Test {
 		long fileSize = 300;
 		long outputSize = 300;
 		int pesNumber = 1;
-		UtilizationModel utilizationModel = new UtilizationModelStochastic(42);
+		UtilizationModel utilizationModel = new UtilizationModelFull();
 
 		Cloudlet[] cloudlet = new Cloudlet[cloudlets];
 

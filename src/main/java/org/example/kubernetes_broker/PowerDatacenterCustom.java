@@ -232,7 +232,7 @@ public class PowerDatacenterCustom extends PowerDatacenter {
         if (vm instanceof PowerVmCustom pvm) {
             Log.println(this.getName() + ": We're trying to create a PowerVMCustom - using custom allocation logic.");
             int targetHostId = pvm.getPreferredHostId();
-            HostEntity targetHost = (HostEntity) getHostList().get(targetHostId);
+            HostEntity targetHost = getHostList().get(targetHostId);
 
             boolean result = false;
 
