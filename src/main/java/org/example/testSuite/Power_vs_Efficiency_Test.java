@@ -58,8 +58,8 @@ public class Power_vs_Efficiency_Test {
 		//create VMs
 		Vm[] vm = new Vm[2];
 
-        vm[0] = new PowerVmCustom(0, userId, 1000, 4, ram, bw, size,0, vmm, new CloudletSchedulerTimeShared(),500,0);
-        vm[1] = new PowerVmCustom(1, userId, 500, 2, ram, bw, size,0, vmm, new CloudletSchedulerTimeShared(),500,1);
+        vm[0] = new PowerVmCustom(0, userId, mips, 4, ram, bw, size,0, vmm, new CloudletSchedulerTimeShared(),200,0);
+        vm[1] = new PowerVmCustom(1, userId, mips*0.75, 2, ram, bw, size,0, vmm, new CloudletSchedulerTimeShared(),200,1);
         list.add(vm[0]);
         list.add(vm[1]);
 
@@ -121,8 +121,8 @@ public class Power_vs_Efficiency_Test {
 			List<Vm> vmlistTemp = new ArrayList<Vm>();
 
 			//Fourth step: Create VMs and Cloudlets and send them to broker
-			vmlist = createVM(brokerId); //creating 5 vms
-			cloudletList = createCloudlet(brokerId, 20, 0); // creating 10 cloudlets
+			vmlist = createVM(brokerId);
+			cloudletList = createCloudlet(brokerId, 2, 0); // creating 20 cloudlets
 
 			cloudletListTemp.addAll(cloudletList);
 			vmlistTemp.addAll(vmlist);
@@ -144,8 +144,8 @@ public class Power_vs_Efficiency_Test {
 			CloudSim.stopSimulation();
 			metrics.stopWallClock();
 
-			if(newList1.size() < 20){
-				Log.printConcat("We only got ", newList1.size(), " whereas we were supposed to get 20!");
+			if(newList1.size() != 15){
+				Log.printConcat("We only got ", newList1.size(), " whereas we were supposed to get 15!");
 			}
 			printCloudletList(newList1);
 			metrics.printSummary(lastClock);
@@ -183,7 +183,7 @@ public class Power_vs_Efficiency_Test {
 		//    a Machine.
 		List<Pe> peList1 = new ArrayList<>();
 
-		int mips = 1000;
+		int mips = 10000;
 
 		// 3. Create PEs and add these into the list.
 		//for a quad-core machine, a list of 4 PEs is required:
@@ -208,7 +208,7 @@ public class Power_vs_Efficiency_Test {
 		PowerModel powerModelHigh = new PowerModelLinear(500,50);  // 250 watts max
 		hostList.add(
 				new PowerHost(
-						hostId,
+						hostId++,
 						new RamProvisionerSimple(ram),
 						new BwProvisionerSimple(bw),
 						storage,
@@ -217,8 +217,6 @@ public class Power_vs_Efficiency_Test {
 						powerModelHigh
 				)
 		); // This is our first machine, the fast but inefficient one
-
-		hostId++;
 
 		hostList.add(
 				new PowerHost(
@@ -254,7 +252,7 @@ public class Power_vs_Efficiency_Test {
 		PowerDatacenterCustom datacenter = null;
 		try {
 			//datacenter = new Datacenter(name, characteristics, new VmAllocationPolicySimple(hostList), storageList, 2000);
-			datacenter = new PowerDatacenterCustom(name, characteristics, new VmAllocationPolicySimple(hostList), storageList, 300,true);
+			datacenter = new PowerDatacenterCustom(name, characteristics, new VmAllocationPolicySimple(hostList), storageList, 20,false);
 			datacenter.setDisableMigrations(true);
 		} catch (Exception e) {
 			e.printStackTrace();
