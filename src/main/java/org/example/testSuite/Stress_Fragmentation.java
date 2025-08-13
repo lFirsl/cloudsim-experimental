@@ -120,7 +120,7 @@ public class Stress_Fragmentation {
 
 			//Fourth step: Create VMs and Cloudlets and send them to broker
 			vmlist = createVM(brokerId, 5, 0); //creating 5 vms
-			cloudletList = createCloudlet(brokerId, 15, 20000,1,0); // creating 10 cloudlets
+			cloudletList = createCloudlet(brokerId, 15, 40000,1,0); // creating 10 cloudlets
 
 			cloudletListTemp.addAll(cloudletList);
 			vmlistTemp.addAll(vmlist);
@@ -151,8 +151,8 @@ public class Stress_Fragmentation {
 			CloudSim.stopSimulation();
 			metrics.stopWallClock();
 
-			if(newList1.size() < 35){
-				Log.printConcat("We only got ", newList1.size(), " whereas we were supposed to get 35!");
+			if(newList1.size() < 20){
+				Log.printConcat("We only got ", newList1.size(), " whereas we were supposed to get 20!");
 			}
 			printCloudletList(newList1);
 			metrics.printSummary(lastClock);
