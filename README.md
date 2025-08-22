@@ -1,24 +1,38 @@
-### CloudSim-Experimental
+# COUBES
 
-This is a **Proof of Concept Prototype** repository, currently in transition to a more mature and thought out implementation.
-This repository and project is part of an MSci Project spanning the 2024-2025 academic year.
+**COUBES** (Container Orchestration Universal Benchmark for Evaluating Schedulers) is a framework that integrates [CloudSim 7G](https://github.com/Cloudslab/cloudsim) with lightweight Kubernetes clusters to enable reproducible, multi-metric benchmarking of container orchestration schedulers.
 
-The goal is to create an extension to CloudSim that allows it to be used 
-as a testing harness for Kubernetes Schedulers.
+This repository contains the current **proof-of-concept implementation**, developed as part of an MSci Project (2024–2025). It will transition towards a more mature and extensible version at a later date.
 
-The way we aim to achieve this is by creating an extension to DatacentreBroker (named `Live_Kubernetes_Broker`)
-that delegates scheduling/allocation tasks to the Kubernetes scheduler via
-an adapter. The adapter converts the CloudSim resources (e.g. GuestEntities and Cloudlets) into
-fake K8s equivalents (nodes and pods) using [KWOK](https://kwok.sigs.k8s.io/), then waits for the
-cluster to perform scheduling. Following successful scheduling, the adapter returns the results back to CloudSim,
-which interprets them as native CloudSim resources and resumes simulation.
+## Overview
+
+The aim of COUBES is to provide a universal testing harness for Kubernetes schedulers that avoids the need for dual implementations. Instead of re-implementing scheduling logic inside CloudSim, COUBES delegates scheduling decisions to a live Kubernetes scheduler via an adapter layer.
+
+- A custom CloudSim broker (`Live_Kubernetes_Broker_EX`) extends the default `DatacentreBroker`.
+- The broker forwards CloudSim resources (VMs and Cloudlets) to an adapter written in Go. This can be found in the `k8s-cloudsim-adapter` folder.
+- The adapter translates these into Kubernetes equivalents (Nodes and Pods), using [KWOK](https://kwok.sigs.k8s.io/) for lightweight cluster emulation.
+- The native Kubernetes scheduler performs scheduling as usual.
+- Results are returned from KWOK to the adapter, then mapped back into CloudSim’s resource model so the simulation can proceed.
+
+## Current Status
+
+- Currently supports basic scenarios with the Kubernetes Default Scheduler.
+- Implements a scoring system for comparing schedulers across multiple metrics.
+- Evaluated using three test scenarios: undercrowding, fragmentation, and performance vs efficiency.
+
+Future development will focus on:
+- Broader test scenarios and additional metrics (e.g. latency, throughput).
+- Support for metric-aware schedulers.
+- Scalability evaluation with larger simulated clusters.
+- Integration with other orchestration frameworks beyond Kubernetes.
+
+---
+
+*This project is under active development and is part of academic research into reproducible benchmarking for container orchestration schedulers.*
+
 ### Current Design
 This diagram showcases the current design that this repository aims to follow:
 ![](images/Current_Design.png)
-
-### Prototype Design
-This design is outdated but roughly showcases the original thought process.
-![](images/CloudSim_Scheduler_Adapter.png)
 
 
 ### Structure
