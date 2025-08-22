@@ -8,8 +8,8 @@ This repository contains the current **proof-of-concept implementation**, develo
 
 The aim of COUBES is to provide a universal testing harness for Kubernetes schedulers that avoids the need for dual implementations. Instead of re-implementing scheduling logic inside CloudSim, COUBES delegates scheduling decisions to a live Kubernetes scheduler via an adapter layer.
 
-- A custom CloudSim broker (`Live_Kubernetes_Broker_EX`) extends the default `DatacentreBroker`.
-- The broker forwards CloudSim resources (VMs and Cloudlets) to an adapter written in Go. This can be found in the `k8s-cloudsim-adapter` folder.
+- A custom CloudSim broker, [Live_Kubernetes_Broker_EX](https://github.com/lFirsl/COUBES/blob/master/src/main/java/org/example/kubernetes_broker/Live_Kubernetes_Broker_Ex.java) extends the default `DatacentreBrokerEX`.
+- The broker forwards CloudSim resources (VMs and Cloudlets) to an adapter written in Go. This can be found in the [k8s-cloudsim-adapter](https://github.com/lFirsl/COUBES/tree/master/k8s-cloudsim-adapter) folder.
 - The adapter translates these into Kubernetes equivalents (Nodes and Pods), using [KWOK](https://kwok.sigs.k8s.io/) for lightweight cluster emulation.
 - The native Kubernetes scheduler performs scheduling as usual.
 - Results are returned from KWOK to the adapter, then mapped back into CloudSim’s resource model so the simulation can proceed.
@@ -18,17 +18,13 @@ The aim of COUBES is to provide a universal testing harness for Kubernetes sched
 
 - Currently supports basic scenarios with the Kubernetes Default Scheduler.
 - Implements a scoring system for comparing schedulers across multiple metrics.
-- Evaluated using three test scenarios: undercrowding, fragmentation, and performance vs efficiency.
+- Evaluated using three test scenarios: undercrowding, fragmentation, and performance vs efficiency. These can be found in the [Test Suite Folder](https://github.com/lFirsl/COUBES/tree/master/src/main/java/org/example/testSuite).
 
 Future development will focus on:
 - Broader test scenarios and additional metrics (e.g. latency, throughput).
 - Support for metric-aware schedulers.
 - Scalability evaluation with larger simulated clusters.
 - Integration with other orchestration frameworks beyond Kubernetes.
-
----
-
-*This project is under active development and is part of academic research into reproducible benchmarking for container orchestration schedulers.*
 
 ### Ideal Design
 This diagram showcases the ideal design that this repository aims to follow:
