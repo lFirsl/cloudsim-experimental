@@ -30,9 +30,13 @@ Future development will focus on:
 
 *This project is under active development and is part of academic research into reproducible benchmarking for container orchestration schedulers.*
 
-### Current Design
-This diagram showcases the current design that this repository aims to follow:
-![](images/Current_Design.png)
+### Ideal Design
+This diagram showcases the ideal design that this repository aims to follow:
+![](images/Ambitious_Design.png)
+
+### Proof-of-Concept Prototype Implementation
+This diagram showcases the implementation design of the Proof-of-Concept Prototype:
+![](images/Implementation_Design.png)
 
 
 ### Structure
