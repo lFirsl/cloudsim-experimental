@@ -12,7 +12,6 @@ package org.example.testSuite;
 
 import org.cloudbus.cloudsim.*;
 import org.cloudbus.cloudsim.core.CloudSim;
-import org.cloudbus.cloudsim.power.PowerDatacenter;
 import org.cloudbus.cloudsim.power.PowerHost;
 import org.cloudbus.cloudsim.power.PowerVm;
 import org.cloudbus.cloudsim.power.models.PowerModel;
@@ -55,7 +54,7 @@ public class Undercrowding_Example_Power_V2 {
 		int ram = 512; //vm memory (MB)
 		int mips = 250;
 		long bw = 1000;
-		int pesNumber = 10; //number of cpus
+		int pesNumber = 4; //number of cpus
 		String vmm = "Xen"; //VMM name
 
 		//create VMs
@@ -179,15 +178,8 @@ public class Undercrowding_Example_Power_V2 {
 
 		// 3. Create PEs and add these into the list.
 		//for a quad-core machine, a list of 4 PEs is required:
-		for(int i = 0; i< 10; i++){
+		for(int i = 0; i< 4; i++){
 			peList1.add(new Pe(i, new PeProvisionerSimple(mips))); // need to store Pe id and MIPS Rating
-		}
-
-		//Another list, for a dual-core machine
-		List<Pe> peList2 = new ArrayList<>();
-
-		for(int i = 0; i< 10; i++){
-			peList2.add(new Pe(i, new PeProvisionerSimple(mips))); // need to store Pe id and MIPS Rating
 		}
 
 		//4. Create Hosts with its id and list of PEs and add them to the list of machines
@@ -233,7 +225,7 @@ public class Undercrowding_Example_Power_V2 {
 		PowerDatacenterCustom datacenter = null;
 		try {
 			//datacenter = new Datacenter(name, characteristics, new VmAllocationPolicySimple(hostList), storageList, 2000);
-			datacenter = new PowerDatacenterCustom(name, characteristics, new VmAllocationPolicySimple(hostList), storageList, 50);
+			datacenter = new PowerDatacenterCustom(name, characteristics, new VmAllocationPolicySimple(hostList), storageList, 20);
 			datacenter.setDisableMigrations(true);
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -247,7 +239,6 @@ public class Undercrowding_Example_Power_V2 {
 	 * @param list  list of Cloudlets
 	 */
 	private static void printCloudletList(List<Cloudlet> list) {
-		int size = list.size();
 		Cloudlet cloudlet;
 
 		String indent = "    ";

@@ -55,19 +55,35 @@ public class PowerDatacenterCustom extends PowerDatacenter {
 
         //Bin efficiency prototype. Only addition to updateCloudletProcessing thus far!
         //...could probably make this into it's own function and then just call "super.updateCloudletProcessing".
-        int activeHosts = 0;
+        int activeVMs = 0;
+        int activeCloudlets = 0;
         for (HostEntity host : getVmAllocationPolicy().getHostList()) {
-            if (host instanceof PowerHost ph && ph.getUtilizationOfCpu() > 0) activeHosts++;
+            for(GuestEntity vm : host.getGuestList()){
+                int cloudletCount = vm.getCloudletScheduler().getCloudletExecList().size() + vm.getCloudletScheduler().getCloudletWaitingList().size();
+                if(cloudletCount > 0){
+                    activeVMs++;
+                    activeCloudlets += cloudletCount;
+                }
+            }
         }
 
-        double consolidationRatio = (double) totalVmIdsEverAllocated.size() / activeHosts;
+        double consolidationRatio = 0;
+        if(activeVMs != 0 &&  activeCloudlets != 0) {
+            consolidationRatio = (double) activeCloudlets / activeVMs;
+            Log.printlnConcat(
+                    CloudSim.clock() + ": We're getting a consolidationRatio of "
+                            + String.format("%.2f", consolidationRatio) + "."
+            );
+            consolidationTW.add(CloudSim.clock(), consolidationRatio);
+        }
+        else{
+            Log.printlnConcat(
+                    CloudSim.clock() + ": No active hosts to calculate consolidation with?"
+            );
+        }
 
 
-        Log.printlnConcat(
-                CloudSim.clock() + ": We're getting a consolidationRatio of "
-                        + String.format("%.2f", consolidationRatio) + "."
-        );
-        consolidationTW.add(CloudSim.clock(), consolidationRatio);
+
 
         // if some time passed since last processing
         if (currentTime > getLastProcessTime()) {

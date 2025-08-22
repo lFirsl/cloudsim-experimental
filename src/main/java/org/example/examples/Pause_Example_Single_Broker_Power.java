@@ -8,15 +8,12 @@
  */
 
 
-package org.example.testSuite;
+package org.example.examples;
 
-import org.cloudbus.cloudsim.power.PowerDatacenter;
 import org.cloudbus.cloudsim.power.PowerHost;
 import org.cloudbus.cloudsim.power.PowerVm;
 import org.cloudbus.cloudsim.power.models.PowerModel;
 import org.cloudbus.cloudsim.power.models.PowerModelLinear;
-import org.example.helper.Constants;
-import org.example.helper.Helper;
 import org.example.kubernetes_broker.PowerDatacenterCustom;
 import org.example.metrics.SimulationMetrics;
 import org.cloudbus.cloudsim.*;

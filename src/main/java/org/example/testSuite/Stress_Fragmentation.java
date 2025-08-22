@@ -151,7 +151,7 @@ public class Stress_Fragmentation {
 			CloudSim.stopSimulation();
 			metrics.stopWallClock();
 
-			if(newList1.size() < 20){
+			if(newList1.size() != 20){
 				Log.printConcat("We only got ", newList1.size(), " whereas we were supposed to get 20!");
 			}
 			printCloudletList(newList1);
@@ -167,7 +167,7 @@ public class Stress_Fragmentation {
 
 
 
-//			broker.sendResetRequestToControlPlane();
+			broker.sendResetRequestToControlPlane();
 
 			Log.println("CloudSimExample7 finished!");
 		}
@@ -245,7 +245,7 @@ public class Stress_Fragmentation {
 		PowerDatacenterCustom datacenter = null;
 		try {
 			//datacenter = new Datacenter(name, characteristics, new VmAllocationPolicySimple(hostList), storageList, 2000);
-			datacenter = new PowerDatacenterCustom(name, characteristics, new VmAllocationPolicySimple(hostList), storageList, 300, true);
+			datacenter = new PowerDatacenterCustom(name, characteristics, new VmAllocationPolicySimple(hostList), storageList, 100, true);
 			datacenter.setDisableMigrations(true);
 		} catch (Exception e) {
 			e.printStackTrace();

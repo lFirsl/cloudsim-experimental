@@ -8,7 +8,6 @@ import org.cloudbus.cloudsim.*;
 import org.cloudbus.cloudsim.EX.DatacenterBrokerEX;
 import org.cloudbus.cloudsim.container.core.Container;
 import org.cloudbus.cloudsim.core.*;
-import org.cloudbus.cloudsim.lists.CloudletList;
 import org.cloudbus.cloudsim.lists.VmList;
 
 import java.io.IOException;
@@ -19,7 +18,6 @@ import java.net.http.HttpResponse;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 public class Live_Kubernetes_Broker_Ex extends DatacenterBrokerEX {
 
@@ -159,7 +157,7 @@ public class Live_Kubernetes_Broker_Ex extends DatacenterBrokerEX {
         if (requestBody == null){
             Log.printlnConcat(CloudSim.clock(),": Request body is null?");
             return;
-        };
+        }
         getCloudletList().clear();
 
         // 2. Submit to control plane
@@ -251,7 +249,7 @@ public class Live_Kubernetes_Broker_Ex extends DatacenterBrokerEX {
             if (cloudlet == null){
                 Log.printlnConcat(getName(), ": Pod ",cloudletId, " not found in Pending Cloudlets for scheduling. It was supposed to be in Pod/VM ",nodeID);
                 continue;
-            };
+            }
 
             Log.printlnConcat(CloudSim.clock() + ": For Cloudlet #" + cloudletId + " the status is " + status);
             switch (status) {
@@ -271,7 +269,7 @@ public class Live_Kubernetes_Broker_Ex extends DatacenterBrokerEX {
                 }
                 case "Unschedulable", "Unknown" -> {
                     Log.printlnConcat(CloudSim.clock(), ": ", getName(), ": Pod ", cloudletId, " is unschedulable or unknown.");
-                    //cloudlet.setCloudletStatus(Cloudlet.CloudletStatus.FAILED);
+                    cloudlet.setCloudletStatus(Cloudlet.CloudletStatus.FAILED);
                     //getCloudletReceivedList().add(cloudlet);
                 }
             }

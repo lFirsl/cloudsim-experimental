@@ -2,13 +2,14 @@ package kube_client
 
 import (
 	"fmt"
+	"log"
+	"path/filepath"
+	"time"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/homedir"
-	"log"
-	"path/filepath"
-	"time"
 )
 
 type KubeClient struct {
@@ -82,7 +83,7 @@ func (kc *KubeClient) DeletePodAndWaitForRescheduling(cloudletID int) ([]*corev1
 	}
 
 	// Watch for rescheduling
-	const maxAttempts = 50
+	const maxAttempts = 30
 	const delay = time.Second / 4
 
 	for i := 0; i < maxAttempts; i++ {
