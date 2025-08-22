@@ -6,7 +6,7 @@ This repository contains the current **proof-of-concept implementation**, develo
 
 ## Overview
 
-The aim of COUBES is to provide a universal testing harness for Kubernetes schedulers that avoids the need for dual implementations. Instead of re-implementing scheduling logic inside CloudSim, COUBES delegates scheduling decisions to a live Kubernetes scheduler via an adapter layer.
+The aim of COUBES is to provide a universal testing harness for Kubernetes schedulers using CloudSim. However, instead of re-implementing the scheduling logic inside CloudSim, COUBES delegates scheduling decisions to a live Kubernetes scheduler via an adapter layer.
 
 - A custom CloudSim broker, [Live_Kubernetes_Broker_EX](https://github.com/lFirsl/COUBES/blob/master/src/main/java/org/example/kubernetes_broker/Live_Kubernetes_Broker_Ex.java) extends the default `DatacentreBrokerEX`.
 - The broker forwards CloudSim resources (VMs and Cloudlets) to an adapter written in Go. This can be found in the [k8s-cloudsim-adapter](https://github.com/lFirsl/COUBES/tree/master/k8s-cloudsim-adapter) folder.
