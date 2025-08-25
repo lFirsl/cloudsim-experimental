@@ -160,7 +160,7 @@ public class Pause_Example_Single_Broker_Power {
 				Log.printConcat("We only got ", newList1.size(), " whereas we were supposed to get 35!");
 			}
 			printCloudletList(newList1);
-			metrics.printSummary(lastClock);
+			metrics.printSummary(lastClock,broker.tpOverall());
 
 //			Helper.printResults(
 //					datacenter0,
@@ -172,7 +172,7 @@ public class Pause_Example_Single_Broker_Power {
 
 
 
-//			broker.sendResetRequestToControlPlane();
+			broker.sendResetRequestToControlPlane();
 
 			Log.println("CloudSimExample7 finished!");
 		}

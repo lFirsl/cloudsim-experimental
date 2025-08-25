@@ -40,7 +40,7 @@ public class SimulationMetrics {
         return Duration.between(wallStart, wallEnd).toSeconds();
     }
 
-    public void printSummary(Double simTime) {
+    public void printSummary(Double simTime,double throughput) {
         System.out.println("----- Simulation Metrics -----");
         System.out.println("Simulated Time Elapsed: " + simTime + " units");
         System.out.println("Wall-clock Time Elapsed: " + getWallClockMillis() + " ms (" + getWallClockSeconds() + " s)");
@@ -58,6 +58,10 @@ public class SimulationMetrics {
         else{
             System.out.println("ERROR: No PowerDatacenter information provided!");
         }
+        if(throughput > 0){
+            System.out.println("Throughput: " + throughput);
+        }
+        else System.out.println("Throughput: N/A");
         if(vms != null) {
             int numberOfVms =vms.size();
             System.out.println("Number of VMs: " + numberOfVms);
@@ -66,5 +70,9 @@ public class SimulationMetrics {
 
 
         System.out.println("--------------------------------");
+    }
+
+    public void printSummary(Double simTime){
+        printSummary(simTime,-1);
     }
 }

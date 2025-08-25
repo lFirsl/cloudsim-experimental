@@ -140,7 +140,7 @@ public class Undercrowding_Example_Power_V2 {
 			metrics.stopWallClock();
 
 			printCloudletList(newList1);
-			metrics.printSummary(lastClock);
+			metrics.printSummary(lastClock,broker.tpOverall());
 
 			Helper.printResults(
 					datacenter0,

@@ -25,9 +25,25 @@ public class Live_Kubernetes_Broker_Ex extends DatacenterBrokerEX {
     private final HttpClient httpClient;
     private int guestIndex = 0;
 
-    //Map of
+    //Maps
     HashMap<Integer,Cloudlet> cloudletsSubmittedToMiddle;
     HashMap<Integer,Cloudlet> cloudletsReadyForCloudsim;
+
+    //Variables for throughput rolling average metrics
+    // --- Throughput metrics (pods/sec) ---
+    private long tpTotalPods = 0L;
+    private long tpTotalNanos = 0L;
+    private long tpBatches = 0L;
+
+    // EWMA (exponentially-weighted moving average) of instantaneous batch throughput
+    private double tpEwma = 0.0;
+    private final double TP_ALPHA = 0.3;     // tune: 0.1 (smoother) .. 0.5 (more reactive)
+
+    // Sliding window over the last N batches
+    private final int TP_WINDOW = 10;
+    private final java.util.ArrayDeque<long[]> tpWindow = new java.util.ArrayDeque<>();
+    private long tpWindowPods = 0L;
+    private long tpWindowNanos = 0L;
 
     public Live_Kubernetes_Broker_Ex(String name) throws Exception {
         super(name, -1.0F);
@@ -219,21 +235,36 @@ public class Live_Kubernetes_Broker_Ex extends DatacenterBrokerEX {
                     .POST(HttpRequest.BodyPublishers.ofString(requestBody))
                     .build();
 
+            // Determine how many pods we’re sending in this batch.
+            final ObjectMapper mapper = new ObjectMapper();
+            final int podsInBatch = mapper.readTree(requestBody).size();
+
+            final long t0 = System.nanoTime();
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            System.out.println("Requesting: " + CONTROL_PLANE_URL + "/schedule-pods");
+            final long t1 = System.nanoTime();
+
+            // Record throughput metrics (even on non-200)
+            tpRecord(podsInBatch, t1 - t0);
 
             if (response.statusCode() == 200) {
-                ObjectMapper mapper = new ObjectMapper();
+                Log.printlnConcat(getName(), ": Batch scheduled. "
+                        , "inst=", String.format("%.2f", (podsInBatch / ((t1 - t0) / 1e9)))
+                        , " pods/s; ewma=", String.format("%.2f", tpEwma())
+                        , "; window(", TP_WINDOW, ")=", String.format("%.2f", tpWindowAvg())
+                        , "; overall=", String.format("%.2f", tpOverall())
+                        , " [batches=", tpBatchCount(), "]"
+                );
                 return (ArrayNode) mapper.readTree(response.body());
             } else {
                 Log.printlnConcat(getName(), ": Failed to batch schedule cloudlets. HTTP ", response.statusCode());
                 return null;
             }
         } catch (Exception e) {
-            Log.printlnConcat(getName(), ": Error submitting cloudlets batch: ", e.getMessage());
+            Log.printlnConcat(getName(), ": Error scheduling cloudlets: ", e.getMessage());
             return null;
         }
     }
+
 
     private void processScheduledPodsResponse(ArrayNode scheduledPods) {
         Log.printlnConcat(getName(), ": Processing pods response");
@@ -397,9 +428,6 @@ public class Live_Kubernetes_Broker_Ex extends DatacenterBrokerEX {
         }
     }
 
-
-
-
     private void submitCloudletToVmInCloudSim(Cloudlet cloudlet, int vmId) {
         GuestEntity targetVm = VmList.getById(getGuestsCreatedList(), vmId);
 
@@ -433,4 +461,43 @@ public class Live_Kubernetes_Broker_Ex extends DatacenterBrokerEX {
             Thread.currentThread().interrupt();
         }
     }
+
+    //Throughput specific helper functions
+    private synchronized void tpRecord(int pods, long durationNanos) {
+        if (pods <= 0 || durationNanos <= 0) return;
+
+        tpTotalPods  += pods;
+        tpTotalNanos += durationNanos;
+        tpBatches++;
+
+        final double instRate = pods / (durationNanos / 1_000_000_000.0);
+        tpEwma = (tpBatches == 1) ? instRate : (TP_ALPHA * instRate + (1 - TP_ALPHA) * tpEwma);
+
+        tpWindow.addLast(new long[]{pods, durationNanos});
+        tpWindowPods  += pods;
+        tpWindowNanos += durationNanos;
+
+        while (tpWindow.size() > TP_WINDOW) {
+            long[] old = tpWindow.removeFirst();
+            tpWindowPods  -= old[0];
+            tpWindowNanos -= old[1];
+        }
+    }
+
+    public synchronized double tpOverall() {
+        return tpTotalNanos == 0 ? 0.0 : tpTotalPods / (tpTotalNanos / 1e9);
+    }
+
+    public synchronized double tpWindowAvg() {
+        return tpWindowNanos == 0 ? 0.0 : tpWindowPods / (tpWindowNanos / 1e9);
+    }
+
+    public synchronized double tpEwma() {
+        return tpEwma;
+    }
+
+    public synchronized long tpBatchCount() {
+        return tpBatches;
+    }
+
 }

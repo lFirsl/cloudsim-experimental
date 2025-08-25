@@ -155,7 +155,7 @@ public class Stress_Fragmentation {
 				Log.printConcat("We only got ", newList1.size(), " whereas we were supposed to get 20!");
 			}
 			printCloudletList(newList1);
-			metrics.printSummary(lastClock);
+			metrics.printSummary(lastClock,broker.tpOverall());
 
 //			Helper.printResults(
 //					datacenter0,
