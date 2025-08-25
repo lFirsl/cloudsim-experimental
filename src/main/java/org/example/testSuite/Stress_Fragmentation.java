@@ -208,7 +208,7 @@ public class Stress_Fragmentation {
 		long storage = 1000000; //host storage
 		int bw = 10000;
 
-        PowerModel powerModelHigh = new PowerModelLinear(500,50);  // 500 watts max
+        PowerModel powerModelHigh = new PowerModelLinear(500,0.1);  // 500 watts max
         for(int x = 0; x < 5; x++){
             hostList.add(
                     new PowerHost(

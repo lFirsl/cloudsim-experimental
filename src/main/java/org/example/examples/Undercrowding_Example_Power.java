@@ -195,7 +195,7 @@ public class Undercrowding_Example_Power {
 		long storage = 1000000; //host storage
 		int bw = 10000;
 
-		PowerModel powerModelHigh = new PowerModelLinear(500,50);  // 500 watts max
+		PowerModel powerModelHigh = new PowerModelLinear(500,0.1);  // 500 watts max
 		for(int x = 0; x < 10; x++){
 			hostList.add(
 					new PowerHost(

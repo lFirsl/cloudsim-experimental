@@ -50,7 +50,7 @@ public class SimulationMetrics {
             int numberOfHosts = hosts.size();
 
 
-            System.out.printf("Energy consumption: %.2f kWh%n", powerDatacenter.getPower() / (3600 * 1000));
+            System.out.printf("Energy consumption: %.2f Wh%n", powerDatacenter.getPower() / (3600));
             System.out.println("Number of hosts: " + numberOfHosts);
             System.out.println("Time-weighted avg consolidation: " + powerDatacenter.getConsolidationAverage(simTime));
 

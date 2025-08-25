@@ -77,7 +77,7 @@ public class Simple_Example_Power_Model {
             }
 
             //Here, we're adding hosts
-            PowerModel powerModel = new PowerModelLinear(250,30);  // 250 watts max
+            PowerModel powerModel = new PowerModelLinear(250,0.1);  // 250 watts max
 
             hostList.add(
                     new PowerHost(0, new RamProvisionerSimple(ram), new BwProvisionerSimple(bw), storage, peList, new VmSchedulerSpaceShared(peList),powerModel)

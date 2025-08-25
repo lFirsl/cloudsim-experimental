@@ -203,8 +203,8 @@ public class Power_vs_Efficiency_Test {
 		long storage = 1000000; //host storage
 		int bw = 10000;
 
-		PowerModel powerModelLow = new PowerModelLinear(250,30);  // 250 watts max
-		PowerModel powerModelHigh = new PowerModelLinear(500,50);  // 250 watts max
+		PowerModel powerModelLow = new PowerModelLinear(250,0.1);  // 250 watts max
+		PowerModel powerModelHigh = new PowerModelLinear(500,0.1);  // 250 watts max
 		hostList.add(
 				new PowerHost(
 						hostId++,
