@@ -182,7 +182,7 @@ public class Power_vs_Efficiency_Test {
 		//    a Machine.
 		List<Pe> peList1 = new ArrayList<>();
 
-		int mips = 10000;
+		int mips = 250;
 
 		// 3. Create PEs and add these into the list.
 		//for a quad-core machine, a list of 4 PEs is required:
@@ -203,7 +203,7 @@ public class Power_vs_Efficiency_Test {
 		long storage = 1000000; //host storage
 		int bw = 10000;
 
-		PowerModel powerModelLow = new PowerModelLinear(250,0.1);  // 250 watts max
+		PowerModel powerModelLow = new PowerModelLinear(125,0.1);  // 250 watts max
 		PowerModel powerModelHigh = new PowerModelLinear(500,0.1);  // 250 watts max
 		hostList.add(
 				new PowerHost(

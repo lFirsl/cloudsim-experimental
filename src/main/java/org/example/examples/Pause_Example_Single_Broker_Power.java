@@ -212,7 +212,7 @@ public class Pause_Example_Single_Broker_Power {
 		long storage = 1000000; //host storage
 		int bw = 10000;
 
-		PowerModel powerModelHigh = new PowerModelLinear(500,50);  // 250 watts max
+		PowerModel powerModelHigh = new PowerModelLinear(500,0.1);  // 250 watts max
 		hostList.add(
 				new PowerHost(
 						hostId,

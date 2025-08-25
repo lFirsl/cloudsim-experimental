@@ -23,6 +23,8 @@ import org.example.helper.Constants;
 import org.example.helper.Helper;
 import org.example.kubernetes_broker.Live_Kubernetes_Broker_Ex;
 import org.example.kubernetes_broker.PowerDatacenterCustom;
+import org.example.kubernetes_broker.PowerVmCustom;
+import org.example.kubernetes_broker.UtilizationModelSlice;
 import org.example.metrics.SimulationMetrics;
 
 import java.text.DecimalFormat;
@@ -61,7 +63,7 @@ public class Undercrowding_Example_Power_V2 {
 		Vm[] vm = new Vm[vms];
 
 		for(int i=0;i<vms;i++){
-			vm[i] = new PowerVm(idShift + i, userId, mips, pesNumber, ram, bw, size,0, vmm, new CloudletSchedulerTimeShared(),200);
+			vm[i] = new PowerVmCustom(idShift + i, userId, mips, pesNumber, ram, bw, size,0, vmm, new CloudletSchedulerTimeShared(),200,-1);
 			list.add(vm[i]);
 		}
 
@@ -78,13 +80,13 @@ public class Undercrowding_Example_Power_V2 {
 		long fileSize = 300;
 		long outputSize = 300;
 		int pesNumber = 1;
-		//UtilizationModel utilizationModel = new UtilizationModelStochastic(42);
-		UtilizationModel utilizationModel = new UtilizationModelFull();
+		UtilizationModel utilizationModel = new UtilizationModelSlice(4);
+        UtilizationModel utilizationModelFull = new UtilizationModelFull();
 
 		Cloudlet[] cloudlet = new Cloudlet[cloudlets];
 
 		for(int i=0;i<cloudlets;i++){
-			cloudlet[i] = new Cloudlet(idShift + i, length, pesNumber, fileSize, outputSize, utilizationModel, utilizationModel, utilizationModel);
+			cloudlet[i] = new Cloudlet(idShift + i, length, pesNumber, fileSize, outputSize, utilizationModelFull, utilizationModelFull,utilizationModelFull);
 			// setting the owner of these Cloudlets
 			cloudlet[i].setUserId(userId);
 			list.add(cloudlet[i]);
@@ -174,7 +176,7 @@ public class Undercrowding_Example_Power_V2 {
 		//    a Machine.
 		List<Pe> peList1 = new ArrayList<>();
 
-		int mips = 1000;
+		int mips = 250;
 
 		// 3. Create PEs and add these into the list.
 		//for a quad-core machine, a list of 4 PEs is required:
@@ -225,7 +227,7 @@ public class Undercrowding_Example_Power_V2 {
 		PowerDatacenterCustom datacenter = null;
 		try {
 			//datacenter = new Datacenter(name, characteristics, new VmAllocationPolicySimple(hostList), storageList, 2000);
-			datacenter = new PowerDatacenterCustom(name, characteristics, new VmAllocationPolicySimple(hostList), storageList, 20);
+			datacenter = new PowerDatacenterCustom(name, characteristics, new VmAllocationPolicySimple(hostList), storageList, 1);
 			datacenter.setDisableMigrations(true);
 		} catch (Exception e) {
 			e.printStackTrace();

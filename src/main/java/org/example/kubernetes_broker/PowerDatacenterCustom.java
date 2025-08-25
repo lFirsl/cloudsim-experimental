@@ -246,47 +246,49 @@ public class PowerDatacenterCustom extends PowerDatacenter {
 
         // If VM specifies a preferred host, place it there
         if (vm instanceof PowerVmCustom pvm) {
-            Log.println(this.getName() + ": We're trying to create a PowerVMCustom - using custom allocation logic.");
-            int targetHostId = pvm.getPreferredHostId();
-            HostEntity targetHost = getHostList().get(targetHostId);
+            if(pvm.getPreferredHostId() != -1){
+                Log.println(this.getName() + ": We're trying to create a PowerVMCustom - using custom allocation logic.");
+                int targetHostId = pvm.getPreferredHostId();
+                HostEntity targetHost = getHostList().get(targetHostId);
 
-            boolean result = false;
+                boolean result = false;
 
-            // Allocate through the allocation policy so mapping is stored
-            if (targetHost != null && getVmAllocationPolicy().getHostList().contains(targetHost)) {
-                result = getVmAllocationPolicy().allocateHostForGuest(pvm, targetHost);
-            } else {
-                // If preferred host is invalid, fall back to normal allocation
-                result = getVmAllocationPolicy().allocateHostForGuest(pvm);
-            }
-
-            if (ack) {
-                int[] data = new int[]{
-                        getId(),
-                        pvm.getId(),
-                        result ? CloudSimTags.TRUE : CloudSimTags.FALSE
-                };
-                send(pvm.getUserId(), CloudSim.getMinTimeBetweenEvents(),
-                        CloudActionTags.VM_CREATE_ACK, data);
-            }
-
-            if (result) {
-                getVmList().add(pvm);
-
-                if (pvm.isBeingInstantiated()) {
-                    pvm.setBeingInstantiated(false);
+                // Allocate through the allocation policy so mapping is stored
+                if (targetHost != null && getVmAllocationPolicy().getHostList().contains(targetHost)) {
+                    result = getVmAllocationPolicy().allocateHostForGuest(pvm, targetHost);
+                } else {
+                    // If preferred host is invalid, fall back to normal allocation
+                    result = getVmAllocationPolicy().allocateHostForGuest(pvm);
                 }
 
-                pvm.updateCloudletsProcessing(
-                        CloudSim.clock(),
-                        getVmAllocationPolicy().getHost(pvm)
-                                .getGuestScheduler()
-                                .getAllocatedMipsForGuest(pvm)
-                );
-            } else {
-                Log.printlnConcat(CloudSim.clock(), ": Datacenter.guestAllocator: Couldn't find a host for PowerVMCustom #", pvm.getId());
+                if (ack) {
+                    int[] data = new int[]{
+                            getId(),
+                            pvm.getId(),
+                            result ? CloudSimTags.TRUE : CloudSimTags.FALSE
+                    };
+                    send(pvm.getUserId(), CloudSim.getMinTimeBetweenEvents(),
+                            CloudActionTags.VM_CREATE_ACK, data);
+                }
+
+                if (result) {
+                    getVmList().add(pvm);
+
+                    if (pvm.isBeingInstantiated()) {
+                        pvm.setBeingInstantiated(false);
+                    }
+
+                    pvm.updateCloudletsProcessing(
+                            CloudSim.clock(),
+                            getVmAllocationPolicy().getHost(pvm)
+                                    .getGuestScheduler()
+                                    .getAllocatedMipsForGuest(pvm)
+                    );
+                } else {
+                    Log.printlnConcat(CloudSim.clock(), ": Datacenter.guestAllocator: Couldn't find a host for PowerVMCustom #", pvm.getId());
+                }
+                return; // Skip normal allocation
             }
-            return; // Skip normal allocation
         }
 
         // Fallback to normal allocation for all other VMs
